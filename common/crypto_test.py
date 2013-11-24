@@ -1,6 +1,6 @@
 import unittest
 
-from common.crypto import *
+from crypto import *
 
 class TestCrypto(unittest.TestCase):
 
