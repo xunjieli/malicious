@@ -1,10 +1,10 @@
-from public_key_repo_func import MyFuncs
+from public_key_repo_func import RepoFuncs
 import os
 
 key = 'hhjdfhsjlssflkk'
 userid = 'test1'
 
-fun = MyFuncs()
+fun = RepoFuncs()
 fun.set_public_key(userid, key)
 actual_key = fun.get_public_key(userid)
 if actual_key != key:
