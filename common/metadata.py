@@ -103,7 +103,7 @@ def metadata_decode(metadata, owner_verify_key, my_user_id, user_dec_key):
              file_verify_key: (N, e), the verification key of the file
              file_key: the symmetric encryption key for the file if the user has read access, or None otherwise
              file_sig_key: (N, e, d) for the file signature key if the user has write access, or None otherwise
-             users: a list of tuples (user_id, access) representing the access control list of the file, where
+             users: a dictionary of user_id to access, representing the access control list of the file, where
                     user_id is the user id, and access is True if the user has write access, False if only read.
     """
     try:
@@ -122,7 +122,7 @@ def metadata_decode(metadata, owner_verify_key, my_user_id, user_dec_key):
 
         file_verify_key = import_key(file_verify_key_block)
         user_blocks = unpack_data(user_block)
-        users = []
+        users = {}
         file_key = None
         file_sig_key = None
         for user_data in user_blocks:
@@ -135,7 +135,7 @@ def metadata_decode(metadata, owner_verify_key, my_user_id, user_dec_key):
             else:
                 raise MetadataFormatException("Metadata corrupted: access_block invalid")
 
-            users.append((user_id, access))
+            users[user_id] = access
 
             if user_id == my_user_id:
                 block_dec = asymmetric_decrypt(user_dec_key, block_enc)
