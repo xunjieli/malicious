@@ -8,7 +8,9 @@ from struct import pack
 from struct import unpack
 
 SYMMETRIC_KEY_SIZE = 32
-ASYMMETRIC_KEY_SIZE = 1024
+FILE_SIGNATURE_KEY_SIZE = 1024
+USER_ENCRYPTION_KEY_SIZE = 8192
+USER_SIGNATURE_KEY_SIZE = 1024
 SHA_SCHEME = SHA
 
 def pad(text, block_size):
@@ -42,10 +44,13 @@ def generate_symmetric_key():
 
 
 # returns (N, e, d) where N is the RSA modulus, e is the encryption exponent, and d the decryption exponent
-def generate_asymmetric_keypair():
-    key = RSA.generate(ASYMMETRIC_KEY_SIZE)
+def generate_asymmetric_keypair(key_size):
+    key = RSA.generate(key_size)
     return key.key.n, key.key.e, key.key.d
 
+generate_file_signature_keypair = lambda: generate_asymmetric_keypair(FILE_SIGNATURE_KEY_SIZE)
+generate_user_signature_keypair = lambda: generate_asymmetric_keypair(USER_SIGNATURE_KEY_SIZE)
+generate_user_encryption_keypair = lambda: generate_asymmetric_keypair(USER_ENCRYPTION_KEY_SIZE)
 
 # public_key is (N, e)
 def asymmetric_encrypt(public_key, msg):
@@ -75,3 +80,16 @@ def asymmetric_verify(public_key, msg, signature):
     h = SHA_SCHEME.new()
     h.update(msg)
     return signature_scheme.verify(h, signature)
+
+# could be (N, e) or (N, e, d)
+def export_key(key):
+    key = RSA.construct(key)
+    return key.exportKey('DER')
+
+# key is an output from export_key
+def import_key(key):
+    key = RSA.importKey(key)
+    if key.has_private():
+        return key.key.n, key.key.e, key.key.d
+    return key.key.n, key.key.e
+

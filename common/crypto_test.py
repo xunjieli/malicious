@@ -60,48 +60,58 @@ class TestCrypto(unittest.TestCase):
         Ns = set()
         ds = set()
         for i in range(5):
-            key = generate_asymmetric_keypair()
+            key = generate_asymmetric_keypair(1024)
             self.assertFalse(key[0] in Ns)
             self.assertFalse(key[2] in ds)
             Ns.add(key[0])
             ds.add(key[2])
 
     def test_asymmetric_encryption_decryption(self):
-        N, e, d = generate_asymmetric_keypair()
+        N, e, d = generate_asymmetric_keypair(1024)
         text = generate_symmetric_key()
         encrypted = asymmetric_encrypt((N, e), text)
         decrypted = asymmetric_decrypt((N, e, d), encrypted)
         self.assertEqual(text, decrypted)
 
     def test_asymmetric_encryption_randomness(self):
-        N, e, d = generate_asymmetric_keypair()
+        N, e, d = generate_asymmetric_keypair(1024)
         text = generate_symmetric_key()
         e1 = asymmetric_encrypt((N, e), text)
         e2 = asymmetric_encrypt((N, e), text)
         self.assertNotEqual(e1, e2)
 
     def test_sign_verify(self):
-        N, e, d = generate_asymmetric_keypair()
+        N, e, d = generate_file_signature_keypair()
         text = Random.new().read(100000)
         signature = asymmetric_sign((N, e, d), text)
         result = asymmetric_verify((N, e), text, signature)
         self.assertTrue(result)
 
     def test_sign_randomness(self):
-        N, e, d = generate_asymmetric_keypair()
+        N, e, d = generate_file_signature_keypair()
         text = Random.new().read(100000)
         s1 = asymmetric_sign((N, e, d), text)
         s2 = asymmetric_sign((N, e, d), text)
         self.assertNotEqual(s1, s2)
 
     def test_verify_correctness(self):
-        N, e, d = generate_asymmetric_keypair()
+        N, e, d = generate_file_signature_keypair()
         text = Random.new().read(100000)
         falseText = text[1:]
         falseSignature = asymmetric_sign((N, e, d), falseText)
         result = asymmetric_verify((N, e), text, falseSignature)
         self.assertFalse(result)
 
+    def test_export_import_key(self):
+        N, e, d = generate_file_signature_keypair()
+        self.assertEqual((N, e, d), import_key(export_key((N, e, d))))
+
+    def test_user_encrypting_file_signature_key(self):
+        N, e, d = generate_user_encryption_keypair()
+        fN, fe, fd = generate_file_signature_keypair()
+        print len(export_key((fN, fe, fd)))
+        encrypted = asymmetric_encrypt((N, e), export_key((fN, fe, fd)))
+        # if this doesn't crash then it's ok
 
 if __name__ == '__main__':
     unittest.main()
