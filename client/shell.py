@@ -121,21 +121,21 @@ class maliciousClient:
 		# need to check integrity
 		return (meta,data)
 
-	def getMetadata(self,owner=None,inode):
+	def getMetadata(self,inode,owner=None):
 		if owner is None:
 			owner = self.name
 		# need to download then check integrity
 		meta = self.fileserver.read_metadata(self.name,owner,inode,self.token)
-		# need to check integrity
 		# need to do some decoding but I don't have some real metadata to work on now yet.
 		# should return as dictionary
 		owner = metadata.extract_owner_from_metadata(metadata)
 		# get the verification key
+		verification_key = self.keyrepo.get_verification_key(owner)
 		try:
-			metadata = 
+			metadata = metadata.metadata_decode(metadata,verification_key,self.name,self.user_credential["MEK"])
 		except MetadataFormatException as e:
 			raise ShellException("Metadata Malformed: "+e.value)
-		return meta
+		return metadata
 
 	def getPath(self):
 		return self.path[-1]
@@ -151,14 +151,15 @@ class maliciousClient:
 		return metadata_encode(file_id,is_folder,file_key,file_sig_key,owner_sig_key,owner,users)
 
 	def getNewInode():
-		inode = self.max_inode
-		self.max_inode = self.max_inode + 1
+		inode = self.user_credential["max_inode"]
+		self.user_credential["max_inode"]= self.user_credential["max_inode"] + 1
 		return inode
+
 	# need to return inode created
 	# specify inode only if you're sure it's available, otherwise the file will be over written!
 	def createFile(self,src,isdir,inode=None):
 		if inode is None:
-			inode = getNewInode():
+			inode = getNewInode()
 		users = [(self.name,True,self.user_credential["MEK"][0:2])] # add self to lsit of users 
 		if type(src) is str:
 			# need to create metadata
@@ -169,32 +170,35 @@ class maliciousClient:
 
 			data_with_sig = metadata.pack_data(data_sig,src)
 			# need to handle error if file transmission fail
-			self.fileserver.upload_file(self.name,inode,metadata,data_with_sig,self.token)
+			result = self.fileserver.upload_file(self.name,inode,metadata,data_with_sig,self.token)
+			if result != "success":
+				raise ShellException("Error uploading file: "+result)
 		else: # it's a file, need to find a way to handle this
 			pass
 		return inode
 
-	def modify_file(client_id, fileID, data_file, token):
-		pass
-	def updateFile(self,src,owner=None,inode):
+	def updateFile(self,src,inode,owner=None):
 		if owner is None:
 			owner = self.name
 		# download metadata for the file encryption key
 		# I need to know who the owner of the file is, otherwise cannot verify the file
 		# how to access file from different user, if the inode is an integer?
-		metadata = self.getMetadata(owner,inode)
-		# read the owner out
+		metadata = self.getMetadata(inode,owner)
+		metadata
 		
-		if not crypto.asymmetric_verify(metadata,)
 		file_encryption_key = "??" # need to extract this from metadata
 		src = crypto.symmetric_encrypt(src,file_encryption_key)
 		data_sig = crypto.asymmetric_sign(self.user_credential["MSK"],src)
 		data_with_sig = metadata.pack_data(data_sig,src)
 		# need to handle error if file transmission fail
-		self.fileserver.modify_file(self.name,inode,data_with_sig,self.token)
+		result = self.fileserver.modify_file(self.name,inode,data_with_sig,self.token)
+		if result != "success":
+				raise ShellException("Error modifying file: "+result)
 
 	def updateMetadata(self,metadata,inode):
-		self.fileserver.modify_metadata(self.name,inode,metadata,self.token)
+		result = self.fileserver.modify_metadata(self.name,inode,metadata,self.token)
+		if result != "success":
+				raise ShellException("Error modifying metadata: "+result)
 
 	############# shell command function ##################
 	def ls(self,path = '.'):
@@ -261,9 +265,13 @@ class maliciousClient:
 		self.dir["dir"][name] = inode
 		self.uploadData() # update the current directory
 
-	def quit(self,name):
+	def __del__(self):
 		# this saves persistent state onto disk
-		pass
+		try:
+			with open(privatefile,'wb') as f:
+				json.dump(self.user_credential,f)
+		except:
+			raise ShellException("failed to save credential file")
 
 
 

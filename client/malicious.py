@@ -2,7 +2,8 @@ import sys, os
 import shell
 import xmlrpclib
 import dummykeydist
-import xmlrpclib
+import dummyfileserver
+import json
 
 from ..common import metadata, crypto
 from ..public_key_repo import public_key_repo_func
@@ -25,7 +26,9 @@ def register(name,privatefile):
 		return 1
 	credential['MEK'] = MEK
 	credential["MSK"] = MSK
-	# upload 
+	# upload key to repo
+	key_repo.set_public_key(name,MEK[0:2])
+	key_repo.set_verification_key(name,MSK[0:2])
 	json.dump(credential,open(privatefile,'wb'))
 	print "registration succesful"
 	return 0
