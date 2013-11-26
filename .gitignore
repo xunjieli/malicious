@@ -1,2 +1,7 @@
 *.pkey
 *.pyc
+
+# data structures
+*.meta
+*.data
+
