@@ -1,33 +1,30 @@
 from file_manager import *
 import unittest
 
+# test data
+userid_a = "testuserA"
+userid_b = "testuserB"
+fileID_a = 1
+fileID_b = 2
+
 class TestFileManager(unittest.TestCase):
 
     def setUp(self):
-        pass
+        # cleaning up if necessary
+        if file_exist(fileID_a, userid_a):
+            delete_file(fileID_a, userid_a)
+        if file_exist(fileID_b, userid_b):
+            delete_file(fileID_b, userid_b)
 
     def test_create_file(self):
         metadata = 'this is metadata'
         datafile = 'this is datafile'
         try:
-            create_file(0, 'testuser', metadata, datafile)
+            create_file(fileID_a, userid_a, metadata, datafile)
             self.assertTrue(True)
         except Exception as e:
             print e
             self.assertTrue(False)
-    '''
-    def test_pack_data_unpack_data(self):
-
-        a, b, c = [Random.new().read(i) for i in [100, 400, 300]]
-        packed = pack_data(a, b, c)
-        self.assertEqual([a, b, c], unpack_data(packed, 3))
-        self.assertEqual([a, b, c], unpack_data(packed))
-        try:
-            unpack_data(packed, 2)
-            self.assertFalse(True)
-        except UnpackException as e:
-            pass
-    '''
 
 if __name__ == '__main__':
     unittest.main()
