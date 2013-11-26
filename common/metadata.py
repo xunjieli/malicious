@@ -101,7 +101,7 @@ def extract_owner_from_metadata(metadata):
     # will need to revisit this function
     file_id, is_folder_block, file_verify_key_block, owner_block,user_block = unpack_data(metadata_block, 4)
     return owner_block
-    
+
 def metadata_decode(metadata, owner_verify_key, my_user_id, user_dec_key):
     """
     Decodes the metadata and get as much information as possible by the given user.
@@ -168,8 +168,7 @@ def metadata_decode(metadata, owner_verify_key, my_user_id, user_dec_key):
                     same_user_id, file_key = unpack_data(block_dec, 2)
                 if user_id != same_user_id:
                     raise MetadataFormatException("Metadata corrupted: user ID does not match encrypted user ID")
-        return file_id, is_folder, file_verify_key, file_key, file_sig_key, users
-
+        return file_id, is_folder, file_verify_key, file_key, file_sig_key,owner_id, users
 
     except UnpackException as e:
         raise MetadataFormatException("Metadata corrupted: " + e.value)
