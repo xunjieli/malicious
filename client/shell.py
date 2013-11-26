@@ -1,20 +1,19 @@
 import json
 import dummyfileserver
-import dummykeydist
 # this module define behavior of the client program
 
 # http://stackoverflow.com/questions/279237/import-a-module-from-a-relative-path
 import os, sys, inspect
-sys.path.append("../common")
-import metadata
-import crypto
+from ..common import metadata, crypto
+
 '''
 specification:
 	directory file:
 		json object with fields: name, files, dir
 	user credential file:
-		json object with fields: private_key, max_inode
+		json object with fields: MEK,MSK, max_inode
 '''
+
 class DirectoryFormatException(Exception):
     def __init__(self, value):
         self.value = value
@@ -43,24 +42,39 @@ class maliciousClient:
 	def authenticate(self,name,privatekey):
 		return ("pass",'token')
 
-	def __init__(self,name,privatefile):
+	def __init__(self,name,privatefile,first_time = False,fileserver,keyrepo):
 		# need to download root dir from the server
-		with open(privatefile,'r') as f:
+		try:
+			with open(privatefile,'r') as f:
+				self.user_credential = json.loads(f.read())
+		except:
+			raise ShellException("failed to load credential file")
+		self.fileserver = fileserver
+		self.keyrepo = keyrepo
+		# need to do authentication properly
+		(msg,token) = self.authenticate(name,self.user_credential["MEK"])
+		if first_time:
+			# create root directory
+			rootfile = {"name":"root","files":{},"dir":{}}
+			self.createFile(src=rootfile,isdir=True,inode=0)
 
-			self.user_credential = json.loads(f.read())
-
-		(msg,token) = self.authenticate(name,self.user_credential["privatekey"])
 		self.msg = msg
 		if msg != "pass":
-			return
+			raise ShellException("failed to authenticate user")
+
 		self.token = token
-		(meta,dirfile) = dummyfileserver.read_file(name,0,self.token)
+		data = self.fileserver.read_file(name,name,0,self.token)
+		# check if data
+		if data is None: # no root directory
+			raise ShellException("root directory does not exist!")
+		meta = data[0]
+		dirfile = data[1]
 		# need to do some check on metadata
 
 		self.name = name
 		self.dir = json.loads(dirfile)
 		self.inodepath = [0]
-		self.path = ['~']
+		self.path = ['root']
 		# create temporary folder
 
 		msg = self.verifyDir(self.dir)
@@ -82,7 +96,7 @@ class maliciousClient:
 		elif path == ".":
 			return
 		else:
-			if self.dir["dir"][path] is none:
+			if path not in self.dir["dir"]:
 				raise ShellException("The given directory in the path does not exist: " + path)
 			else:
 				pathinode = self.dir["dir"][path]
@@ -99,36 +113,88 @@ class maliciousClient:
 
 			
 
-	def getData(self,inode):
+	def getData(self,owner = None,inode):
+		if owner is None:
+			owner = self.name
 		# need to download then check integrity
-		(meta,data) = dummyfileserver.read_file(self.name,inode,self.token)
+		(meta,data) = self.fileserver.read_file(self.name,owner,inode,self.token)
 		# need to check integrity
 		return (meta,data)
 
-	def getMetadata(self,inode):
+	def getMetadata(self,owner=None,inode):
+		if owner is None:
+			owner = self.name
 		# need to download then check integrity
-		meta = dummyfileserver.read_metadata(self.name,inode,self.token)
+		meta = self.fileserver.read_metadata(self.name,owner,inode,self.token)
 		# need to check integrity
 		# need to do some decoding but I don't have some real metadata to work on now yet.
 		# should return as dictionary
+		owner = metadata.extract_owner_from_metadata(metadata)
+		# get the verification key
+		try:
+			metadata = 
+		except MetadataFormatException as e:
+			raise ShellException("Metadata Malformed: "+e.value)
 		return meta
 
 	def getPath(self):
 		return self.path[-1]
 
 	def createMetadata(self,inode,isdir,users=[]):
-		pass
+		file_id = self.name + '_' + str(inode)
+		is_folder = isdir
+		file_key = crypto.generate_symmetric_key()
+		file_sig_key = crypto.generate_file_signature_keypair()
+		owner_sig_key = self.user_credential["MSK"]
+		owner = self.name
+		users=[(self.name,True,self.user_credential["MEK"][0:2])]
+		return metadata_encode(file_id,is_folder,file_key,file_sig_key,owner_sig_key,owner,users)
 
 	def getNewInode():
+		inode = self.max_inode
 		self.max_inode = self.max_inode + 1
-		return self.max_inode
+		return inode
 	# need to return inode created
-	def createFile(self,src,isdir,users=[]):
+	# specify inode only if you're sure it's available, otherwise the file will be over written!
+	def createFile(self,src,isdir,inode=None):
+		if inode is None:
+			inode = getNewInode():
+		users = [(self.name,True,self.user_credential["MEK"][0:2])] # add self to lsit of users 
 		if type(src) is str:
 			# need to create metadata
+			metadata = self.createMetadata(inode,isdir,users)
+			file_encryption_key = "??" # need to extract this from metadata
+			src = crypto.symmetric_encrypt(src,file_encryption_key)
+			data_sig = crypto.asymmetric_sign(self.user_credential["MSK"],src)
 
+			data_with_sig = metadata.pack_data(data_sig,src)
+			# need to handle error if file transmission fail
+			self.fileserver.upload_file(self.name,inode,metadata,data_with_sig,self.token)
 		else: # it's a file, need to find a way to handle this
 			pass
+		return inode
+
+	def modify_file(client_id, fileID, data_file, token):
+		pass
+	def updateFile(self,src,owner=None,inode):
+		if owner is None:
+			owner = self.name
+		# download metadata for the file encryption key
+		# I need to know who the owner of the file is, otherwise cannot verify the file
+		# how to access file from different user, if the inode is an integer?
+		metadata = self.getMetadata(owner,inode)
+		# read the owner out
+		
+		if not crypto.asymmetric_verify(metadata,)
+		file_encryption_key = "??" # need to extract this from metadata
+		src = crypto.symmetric_encrypt(src,file_encryption_key)
+		data_sig = crypto.asymmetric_sign(self.user_credential["MSK"],src)
+		data_with_sig = metadata.pack_data(data_sig,src)
+		# need to handle error if file transmission fail
+		self.fileserver.modify_file(self.name,inode,data_with_sig,self.token)
+
+	def updateMetadata(self,metadata,inode):
+		self.fileserver.modify_metadata(self.name,inode,metadata,self.token)
 
 	############# shell command function ##################
 	def ls(self,path = '.'):
@@ -186,7 +252,7 @@ class maliciousClient:
 
 	def mkdir(self,name):
 		print "usage: mkdir [directory name]"
-		if self.dir["dir"][name] is not None or self.dir["files"][name] is not None:
+		if name in self.dir["dir"] or name in self.dir["files"]:
 			# need to check if the directory exists
 			raise ShellException("name already exists: " + name)
 		newdirfile = {"name":name,"files":{},"dir":{}};

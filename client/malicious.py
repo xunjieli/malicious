@@ -1,9 +1,34 @@
-import sys
+import sys, os
 import shell
 import xmlrpclib
+import dummykeydist
+import xmlrpclib
 
+from ..common import metadata, crypto
+from ..public_key_repo import public_key_repo_func
 
 client = 0
+# key_repo = xmlrpclib.ServerProxy('http://localhost:8008')
+# fileserver = xmlrpclib.ServerProxy('http://localhost:8000')
+# keep the test local now so I don't have to run separate process to test this
+key_repo = dummykeydist.dummykeydist()
+fileserver = dummyfileserver
+
+def register(name,privatefile):
+	keydist = dummykeydist.dummykeydist()
+	credential = {"max_inode":0L,"MEK":None,"MSK":None}
+	print "creating encryption key..."
+	MEK = crypto.generate_user_encryption_keypair()
+	MSK = crypto.generate_user_signature_keypair()
+	if MEK is None or MSK is None:
+		print "Error registering the user, nothing has been done"
+		return 1
+	credential['MEK'] = MEK
+	credential["MSK"] = MSK
+	# upload 
+	json.dump(credential,open(privatefile,'wb'))
+	print "registration succesful"
+	return 0
 
 def getcmd():
 	global client
@@ -30,10 +55,24 @@ def authenticate(userid,privatekeyfile):
 	'''
 if __name__ =="__main__":
 	print "Welcome to malicious file sharing system"
-	print "your username: ", sys.argv[1]
-	print "private key file: ", sys.argv[2]
+	print "please log in:"
+	name = raw_input("username:")
+	privatefile = raw_input("private key file:")
+	first_time = False
+	while not os.path.exist(privatefile):
+		print "cannot find the private key file, do you want to register for a new account (y/n)?"
+		ans = raw_input()
+		if ans == 'y':
+			stat = register(name,privatefile)
+			if stat:
+				print "error while registering for an account, please restart the program"
+				sys.exit(1)
+			first_time = True
+		else:
+			privatefile = raw_input("re-enter private key file:")
+
 	global client
-	client = shell.maliciousClient(sys.argv[1],sys.argv[2])
+	client = shell.maliciousClient(sys.argv[1],sys.argv[2],first_time)
 
 	if client.msg != "pass":
 		print "Failed to authenticate: ",client.msg
