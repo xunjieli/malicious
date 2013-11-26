@@ -45,9 +45,11 @@ class maliciousClient:
 
 	def __init__(self,name,privatefile):
 		# need to download root dir from the server
-		with open(privatefile,'r') as f:
-
-			self.user_credential = json.loads(f.read())
+		try:
+			with open(privatefile,'r') as f:
+				self.user_credential = json.loads(f.read())
+		except:
+			raise ShellException("failed to load credential file")
 
 		(msg,token) = self.authenticate(name,self.user_credential["privatekey"])
 		self.msg = msg
@@ -82,7 +84,7 @@ class maliciousClient:
 		elif path == ".":
 			return
 		else:
-			if self.dir["dir"][path] is none:
+			if path not in self.dir["dir"]:
 				raise ShellException("The given directory in the path does not exist: " + path)
 			else:
 				pathinode = self.dir["dir"][path]
@@ -120,8 +122,9 @@ class maliciousClient:
 		pass
 
 	def getNewInode():
+		inode = self.max_inode
 		self.max_inode = self.max_inode + 1
-		return self.max_inode
+		return inode
 	# need to return inode created
 	def createFile(self,src,isdir,users=[]):
 		if type(src) is str:
@@ -186,7 +189,7 @@ class maliciousClient:
 
 	def mkdir(self,name):
 		print "usage: mkdir [directory name]"
-		if self.dir["dir"][name] is not None or self.dir["files"][name] is not None:
+		if name in self.dir["dir"] or name in self.dir["files"]:
 			# need to check if the directory exists
 			raise ShellException("name already exists: " + name)
 		newdirfile = {"name":name,"files":{},"dir":{}};
