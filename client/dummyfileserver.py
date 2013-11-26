@@ -43,9 +43,9 @@ def upload_file(client_id, fileID,  metadata_file, data_file, token):
 			f.write(data_file)
 			f.close()
 
-		return True
+		return "success"
 	except:
-		return False
+		return "something failed"
 
 def modify_metadata(client_id, fileID,  metadata_file, token):
 	fullpath = os.path.join(root,client_id)
@@ -56,31 +56,31 @@ def modify_metadata(client_id, fileID,  metadata_file, token):
 			f.write(metadata_file)
 			f.close()
 		
-		return True
+		return "success"
 	except:
-		return False
+		return "something failed"
 
-def modify_file(client_id, fileID, data_file, token):
-	fullpath = os.path.join(root,client_id)
+def modify_file(client_id,owner, fileID, data_file, token):
+	fullpath = os.path.join(root,owner)
 	if not os.path.isdir(fullpath):
 		os.mkdir(fullpath)
 	try:
 		with open(os.path.join(fullpath,fileID+".dat"),'w') as f:
 			f.write(data_file)
 			f.close()
-		return True
+		return "success"
 	except:
-		return False
+		return "something failed"
 
-def remove_file(client_id, fileID, token):
-	fullpath = os.path.join(root,client_id)
+def remove_file(client_id,owner, fileID, token):
+	fullpath = os.path.join(root,owner)
 	if not os.path.isdir(fullpath):
 		os.mkdir(fullpath)
 	try:
 		os.remove(os.path.join(fullpath,fileID+".md"))
 		os.remove(os.path.join(fullpath,fileID+".dat"))
-		return True
+		return "success"
 	except:
-		return False
+		return "something failed"
 
 

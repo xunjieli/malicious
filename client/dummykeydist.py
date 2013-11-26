@@ -14,7 +14,7 @@ class dummykeydist:
 			self.allusers = pickle.load(open(self.file,'rb'))
 		except:
 			pass
-
+'''
 	def register(self,userid):
 		if userid in self.allusers:
 			return None # user already exist
@@ -22,16 +22,23 @@ class dummykeydist:
 		MSK = crypto.generate_user_signature_keypair()
 		self.allusers[userid] = (MEK[0:2], MSK[0:2]) # save only public part of the key
 		return MEK, MSK
+'''
+	def get_public_key(self,userid):
+		try:
+			return self.allusers[userid]["pkey"]
+		except:
+			return None
 
-	def getPublicKey(self,userid):
+	def get_verification_key(self,userid):
 		try:
-			return self.allusers[userid][0]
+			return self.allusers[userid]["skey"]
 		except:
 			return None
-	def getSigningKey(self,userid):
-		try:
-			return self.allusers[userid][1]
-		except:
-			return None
+	def set_public_key(self,userid,key):
+		self.allusers[userid]["pkey"] = key
+
+	def set_verification_key(self,userid,key):
+		self.allusers[userid]["skey"] = key
+
 	def __del__(self):
 		pickle.dump(self.allusers,open(self.file,'wb'))
