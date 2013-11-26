@@ -1,13 +1,13 @@
 # this module manages file creation
 import os
 import sys
-import common.metadata
+from ..common import metadata
 
 class PermissionDeniedException(Exception):
     def __init__(self, value):
         self.value = value
     def __str__(self):
-        return repr(self.value_
+        return repr(self.value)
     __repr__ = __str__
 
 def metafile_name(fileID, userid):
@@ -91,7 +91,7 @@ def can_read_datafile(fileID, userid):
 def file_exist(fileID, userid):
     meta = userid +"_%d.meta" % fileID
     data = userid +"_%d.data" % fileID
-    return os.path.isfile(meta) && os.path.isfile(data):
+    return os.path.isfile(meta) and os.path.isfile(data)
 
 def is_owner(userid, metadata):
     # TODO: confirm with Robin on how metadata exposes this info.

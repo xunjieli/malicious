@@ -1,4 +1,3 @@
-start server:
-python server.py
-start client:
-python client.py
+run test like 
+
+<pre>python -m malicious.server.file_manager_test</pre>
