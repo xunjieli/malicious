@@ -35,8 +35,9 @@ class TestCrypto(unittest.TestCase):
 
     def test_metadata_encode_decode(self):
         # User 0 is owner, user 1 has read, user 2 has read/write, user 3 has no access
-        metadata = metadata_encode('test_file', False, file_key, file_sig_key, user_sign_keys[0], [
-            (user_ids[0], True, public_part(user_enc_keys[0])),
+        owner = (user_ids[0], public_part(user_enc_keys[0]))
+        metadata = metadata_encode('test_file', False, file_key, file_sig_key,
+user_sign_keys[0], owner, [
             (user_ids[1], False, public_part(user_enc_keys[1])),
             (user_ids[2], True, public_part(user_enc_keys[2])),
         ])
@@ -45,33 +46,41 @@ class TestCrypto(unittest.TestCase):
             metadata_decode(metadata, public_part(user_sign_keys[0]), user_ids[i], user_enc_keys[i])
             for i in range(4)
         ]
-        users = [(user_ids[0], True), (user_ids[1], False), (user_ids[2], True)]
+
+        owner_id = user_ids[0]
+        users = [(user_ids[1], False), (user_ids[2], True)]
         self.assertEqual(
-            ('test_file', False, public_part(file_sig_key), file_key, file_sig_key, users),
+            ('test_file', False, public_part(file_sig_key), file_key, file_sig_key, owner_id, users),
             decoded_metadatas[0])
+
         self.assertEqual(
-            ('test_file', False, public_part(file_sig_key), file_key, None, users),
+            ('test_file', False, public_part(file_sig_key), file_key, None, owner_id, users),
             decoded_metadatas[1])
+
         self.assertEqual(
-            ('test_file', False, public_part(file_sig_key), file_key, file_sig_key, users),
+            ('test_file', False, public_part(file_sig_key), file_key,
+file_sig_key, owner_id, users),
             decoded_metadatas[2])
+
         self.assertEqual(
-            ('test_file', False, public_part(file_sig_key), None, None, users),
+            ('test_file', False, public_part(file_sig_key), None, None,
+owner_id, users),
             decoded_metadatas[3])
 
     def test_metadata_encode_decode_folder(self):
-        metadata = metadata_encode('test_file', True, file_key, file_sig_key, user_sign_keys[0], [
-            (user_ids[0], True, public_part(user_enc_keys[0]))])
+        owner = (user_ids[0], public_part(user_enc_keys[0]))
+        metadata = metadata_encode('test_file', True, file_key, file_sig_key,
+user_sign_keys[0], owner, [])
 
         decoded_metadata = metadata_decode(metadata, public_part(user_sign_keys[0]), user_ids[0], user_enc_keys[0])
         self.assertEqual(
-            ('test_file', True, public_part(file_sig_key), file_key, file_sig_key, [(user_ids[0], True)]),
-            decoded_metadata)
+            ('test_file', True, public_part(file_sig_key), file_key, file_sig_key, 0, []),
+              decoded_metadata)
 
     def test_metadata_encode_verify(self):
-        metadata = metadata_encode('test_file', True, file_key, file_sig_key, user_sign_keys[0], [
-            (user_ids[0], True, public_part(user_enc_keys[0]))])
-
+        owner = (user_ids[0], public_part(user_enc_keys[0]))
+        metadata = metadata_encode('test_file', True, file_key, file_sig_key,
+user_sign_keys[0], owner, [])
         metadata_sig, metadata_block = unpack_data(metadata)
         fake_metadata_block = 'fake' + metadata_block[4:]
         fake_metadata_sig = 'fake' + metadata_sig[4:]

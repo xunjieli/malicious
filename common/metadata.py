@@ -39,12 +39,15 @@ def unpack_data(data, expected_len=None):
         ptr += l
     return result
 
-def metadata_encode(file_id, is_folder, file_key, file_sig_key, owner_sig_key, users):
+def metadata_encode(file_id, is_folder, file_key, file_sig_key, owner_sig_key, owner, users):
     """
     Encodes the metadata into a string.
     @param file_key: the symmetric key for encrypting/decrypting the file
     @param file_sig_key: (N, e, d), the signature key for signing/verifying the file
     @param owner_sig_key: (N, e, d), the owner's signature key for signing/verifying the metadata
+    @param owner: (user_id, (N,e))
+                    user_id is the string user id of the owner,
+                    (N, e) is the public key of that user
     @param users: A list of users (user_id, access, (N, e)) to give access to the file.
                     user_id is a string user id,
                     access is a boolean of whether the user also has write access
@@ -54,6 +57,9 @@ def metadata_encode(file_id, is_folder, file_key, file_sig_key, owner_sig_key, u
     @return A string containing the metadata
     """
     file_sig_key_encoded = export_key(file_sig_key)
+
+    pack_owner = pack_data(owner[0], file_key, file_sig_key_encoded)
+    owner_block = pack_data(owner[0], asymmetric_encrypt(owner[1], pack_owner))
 
     user_blocks = []
     for user_id, access, user_key in users:
@@ -70,7 +76,8 @@ def metadata_encode(file_id, is_folder, file_key, file_sig_key, owner_sig_key, u
     file_verify_key_block = export_key((file_sig_key[0], file_sig_key[1]))
     is_folder_block = pack('B', 0xff if is_folder else 0)
 
-    metadata_block = pack_data(file_id, is_folder_block, file_verify_key_block, user_block)
+    metadata_block = pack_data(file_id, is_folder_block, file_verify_key_block,
+owner_block, user_block)
     metadata_sig = asymmetric_sign(owner_sig_key, metadata_block)
 
     metadata_with_sig = pack_data(metadata_sig, metadata_block)
@@ -103,6 +110,7 @@ def metadata_decode(metadata, owner_verify_key, my_user_id, user_dec_key):
              file_verify_key: (N, e), the verification key of the file
              file_key: the symmetric encryption key for the file if the user has read access, or None otherwise
              file_sig_key: (N, e, d) for the file signature key if the user has write access, or None otherwise
+             owner_id: id of the owner
              users: a dictionary of user_id to access, representing the access control list of the file, where
                     user_id is the user id, and access is True if the user has write access, False if only read.
     """
@@ -110,7 +118,7 @@ def metadata_decode(metadata, owner_verify_key, my_user_id, user_dec_key):
         metadata_sig, metadata_block = unpack_data(metadata, 2)
         if not asymmetric_verify(owner_verify_key, metadata_block, metadata_sig):
             raise MetadataFormatException("Metadata signature invalid")
-        file_id, is_folder_block, file_verify_key_block, user_block = unpack_data(metadata_block, 4)
+        file_id, is_folder_block, file_verify_key_block, owner_block, user_block = unpack_data(metadata_block, 5)
 
 
         if is_folder_block == pack('B', 0xff):
@@ -125,6 +133,15 @@ def metadata_decode(metadata, owner_verify_key, my_user_id, user_dec_key):
         users = {}
         file_key = None
         file_sig_key = None
+
+        # deal with owner separately
+        owner_id, owner_block = unpack_data(owner_block)
+        if owner_id == my_user_id:
+            block_dec = asymmetric_decrypt(user_dec_key, owner_block)
+            same_user_id, file_key, file_sig_key_encoded = unpack_data(block_dec, 3)
+            file_sig_key = import_key(file_sig_key_encoded)
+
+        # other users of the file
         for user_data in user_blocks:
             user_id, access_block, block_enc = unpack_data(user_data, 3)
 
