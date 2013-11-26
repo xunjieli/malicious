@@ -42,14 +42,16 @@ class maliciousClient:
 	def authenticate(self,name,privatekey):
 		return ("pass",'token')
 
-	def __init__(self,name,privatefile,first_time = False):
+	def __init__(self,name,privatefile,first_time = False,fileserver,keyrepo):
 		# need to download root dir from the server
 		try:
 			with open(privatefile,'r') as f:
 				self.user_credential = json.loads(f.read())
 		except:
 			raise ShellException("failed to load credential file")
-
+		self.fileserver = fileserver
+		self.keyrepo = keyrepo
+		# need to do authentication properly
 		(msg,token) = self.authenticate(name,self.user_credential["MEK"])
 		if first_time:
 			# create root directory
@@ -58,9 +60,10 @@ class maliciousClient:
 
 		self.msg = msg
 		if msg != "pass":
-			return
+			raise ShellException("failed to authenticate user")
+
 		self.token = token
-		data = dummyfileserver.read_file(name,0,self.token)
+		data = self.fileserver.read_file(name,name,0,self.token)
 		# check if data
 		if data is None: # no root directory
 			raise ShellException("root directory does not exist!")
@@ -110,18 +113,28 @@ class maliciousClient:
 
 			
 
-	def getData(self,inode):
+	def getData(self,owner = None,inode):
+		if owner is None:
+			owner = self.name
 		# need to download then check integrity
-		(meta,data) = dummyfileserver.read_file(self.name,inode,self.token)
+		(meta,data) = self.fileserver.read_file(self.name,owner,inode,self.token)
 		# need to check integrity
 		return (meta,data)
 
-	def getMetadata(self,inode):
+	def getMetadata(self,owner=None,inode):
+		if owner is None:
+			owner = self.name
 		# need to download then check integrity
-		meta = dummyfileserver.read_metadata(self.name,inode,self.token)
+		meta = self.fileserver.read_metadata(self.name,owner,inode,self.token)
 		# need to check integrity
 		# need to do some decoding but I don't have some real metadata to work on now yet.
 		# should return as dictionary
+		owner = metadata.extract_owner_from_metadata(metadata)
+		# get the verification key
+		try:
+			metadata = 
+		except MetadataFormatException as e:
+			raise ShellException("Metadata Malformed: "+e.value)
 		return meta
 
 	def getPath(self):
@@ -133,8 +146,9 @@ class maliciousClient:
 		file_key = crypto.generate_symmetric_key()
 		file_sig_key = crypto.generate_file_signature_keypair()
 		owner_sig_key = self.user_credential["MSK"]
+		owner = self.name
 		users=[(self.name,True,self.user_credential["MEK"][0:2])]
-		return metadata_encode(file_id,is_folder,file_key,file_sig_key,owner_sig_key,users)
+		return metadata_encode(file_id,is_folder,file_key,file_sig_key,owner_sig_key,owner,users)
 
 	def getNewInode():
 		inode = self.max_inode
@@ -155,27 +169,32 @@ class maliciousClient:
 
 			data_with_sig = metadata.pack_data(data_sig,src)
 			# need to handle error if file transmission fail
-			dummyfileserver.upload_file(self.name,inode,metadata,data_with_sig,self.token)
+			self.fileserver.upload_file(self.name,inode,metadata,data_with_sig,self.token)
 		else: # it's a file, need to find a way to handle this
 			pass
 		return inode
 
 	def modify_file(client_id, fileID, data_file, token):
-
-	def updateFile(self,src,inode):
+		pass
+	def updateFile(self,src,owner=None,inode):
+		if owner is None:
+			owner = self.name
 		# download metadata for the file encryption key
 		# I need to know who the owner of the file is, otherwise cannot verify the file
 		# how to access file from different user, if the inode is an integer?
-		metadata = dummyfileserver.read_metadata(self.name,inode,self.token)
+		metadata = self.getMetadata(owner,inode)
+		# read the owner out
+		
+		if not crypto.asymmetric_verify(metadata,)
 		file_encryption_key = "??" # need to extract this from metadata
 		src = crypto.symmetric_encrypt(src,file_encryption_key)
 		data_sig = crypto.asymmetric_sign(self.user_credential["MSK"],src)
 		data_with_sig = metadata.pack_data(data_sig,src)
 		# need to handle error if file transmission fail
-		dummyfileserver.modify_file(self.name,inode,data_with_sig,self.token)
+		self.fileserver.modify_file(self.name,inode,data_with_sig,self.token)
 
 	def updateMetadata(self,metadata,inode):
-		dummyfileserver.modify_metadata(self.name,inode,metadata,self.token)
+		self.fileserver.modify_metadata(self.name,inode,metadata,self.token)
 
 	############# shell command function ##################
 	def ls(self,path = '.'):

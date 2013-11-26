@@ -89,7 +89,12 @@ def metadata_verify(metadata, owner_verify_key):
         return asymmetric_verify(owner_verify_key, metadata_block, metadata_sig)
     except UnpackException as e:
         return False
-
+def extract_owner_from_metadata(metadata):
+    metadata_sig, metadata_block = unpack_data(metadata, 2)
+    # will need to revisit this function
+    file_id, is_folder_block, file_verify_key_block, owner_block,user_block = unpack_data(metadata_block, 4)
+    return owner_block
+    
 def metadata_decode(metadata, owner_verify_key, my_user_id, user_dec_key):
     """
     Decodes the metadata and get as much information as possible by the given user.
