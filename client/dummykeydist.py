@@ -1,7 +1,8 @@
 import pickle
 import os, sys, inspect
-sys.path.append("../common")
-import crypto
+
+from ..common import crypto
+from ..public_key_repo import public_key_repo_func
 # use for testing purposes only
 
 
@@ -17,15 +18,20 @@ class dummykeydist:
 	def register(self,userid):
 		if userid in self.allusers:
 			return None # user already exist
-		key = crypto.generate_user_encryption_keypair()
-		self.allusers[userid] = key[0:2] # save only public part of the key
-		return key
+		MEK = crypto.generate_user_encryption_keypair()
+		MSK = crypto.generate_user_signature_keypair()
+		self.allusers[userid] = (MEK[0:2], MSK[0:2]) # save only public part of the key
+		return MEK, MSK
 
 	def getPublicKey(self,userid):
 		try:
-			return self.allusers[userid]
+			return self.allusers[userid][0]
 		except:
 			return None
-
+	def getSigningKey(self,userid):
+		try:
+			return self.allusers[userid][1]
+		except:
+			return None
 	def __del__(self):
 		pickle.dump(self.allusers,open(self.file,'wb'))
