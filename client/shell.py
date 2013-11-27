@@ -42,28 +42,39 @@ class maliciousClient:
 	def authenticate(self,name,privatekey):
 		return ("pass",'token')
 
-	def __init__(self,name,privatefile,first_time = False,fileserver,keyrepo):
+	def __init__(self,name,privatefile,fileserver,keyrepo,first_time = False):
 		# need to download root dir from the server
+		self.name = name
+		# get credential
 		try:
 			with open(privatefile,'r') as f:
 				self.user_credential = json.loads(f.read())
+				for i in range(len(self.user_credential["MEK"])):
+					self.user_credential["MEK"][i] = long(self.user_credential["MEK"][i])
+				for i in range(len(self.user_credential["MSK"])):
+					self.user_credential["MSK"][i] = long(self.user_credential["MSK"][i])
 		except:
 			raise ShellException("failed to load credential file")
-		self.fileserver = fileserver
-		self.keyrepo = keyrepo
-		# need to do authentication properly
+		# authenticate
 		(msg,token) = self.authenticate(name,self.user_credential["MEK"])
-		if first_time:
-			# create root directory
-			rootfile = {"name":"root","files":{},"dir":{}}
-			self.createFile(src=rootfile,isdir=True,inode=0)
-
 		self.msg = msg
 		if msg != "pass":
 			raise ShellException("failed to authenticate user")
 
 		self.token = token
-		data = self.fileserver.read_file(name,name,0,self.token)
+
+		self.fileserver = fileserver
+		self.keyrepo = keyrepo
+		# need to do authentication properly
+		
+		if first_time:
+			# create root directory
+			rootfile = json.dumps({"name":"root","files":{},"dir":{}})
+			print "This is your first time.. setting up root directory.."
+			self.createFile(src=rootfile,isdir=True,inode=0)
+
+		
+		meta,data = self.getData(0)
 		# check if data
 		if data is None: # no root directory
 			raise ShellException("root directory does not exist!")
@@ -71,7 +82,7 @@ class maliciousClient:
 		dirfile = data[1]
 		# need to do some check on metadata
 
-		self.name = name
+		
 		self.dir = json.loads(dirfile)
 		self.inodepath = [0]
 		self.path = ['root']
@@ -113,12 +124,27 @@ class maliciousClient:
 
 			
 
-	def getData(self,owner = None,inode):
+	def getData(self,inode,owner = None):
 		if owner is None:
 			owner = self.name
 		# need to download then check integrity
 		(meta,data) = self.fileserver.read_file(self.name,owner,inode,self.token)
-		# need to check integrity
+		# need to check integrity of meta data
+		owner = metadata.extract_owner_from_metadata(meta)
+		# get the verification key
+		verification_key = self.keyrepo.get_verification_key(owner)
+		try:
+			meta = metadata.metadata_decode(meta,verification_key,self.name,self.user_credential["MEK"])
+		except MetadataFormatException as e:
+			raise ShellException("Metadata Malformed: "+e.value)
+
+		file_encryption_key = meta[3]
+		file_signing_key = meta[2]
+		# verify file
+		(data_sig,src) = metadata.unpack_data(data,2)
+		if not crypto.asymmetric_verify(file_signing_key,src,data_sig):
+			raise ShellException("File Signature Verification Failed")
+		data = crypto.symmetric_decrypt(src,file_encryption_key)
 		return (meta,data)
 
 	def getMetadata(self,inode,owner=None):
@@ -128,14 +154,14 @@ class maliciousClient:
 		meta = self.fileserver.read_metadata(self.name,owner,inode,self.token)
 		# need to do some decoding but I don't have some real metadata to work on now yet.
 		# should return as dictionary
-		owner = metadata.extract_owner_from_metadata(metadata)
+		owner = metadata.extract_owner_from_metadata(meta)
 		# get the verification key
 		verification_key = self.keyrepo.get_verification_key(owner)
 		try:
-			metadata = metadata.metadata_decode(metadata,verification_key,self.name,self.user_credential["MEK"])
+			meta = metadata.metadata_decode(meta,verification_key,self.name,self.user_credential["MEK"])
 		except MetadataFormatException as e:
 			raise ShellException("Metadata Malformed: "+e.value)
-		return metadata
+		return meta
 
 	def getPath(self):
 		return self.path[-1]
@@ -146,9 +172,10 @@ class maliciousClient:
 		file_key = crypto.generate_symmetric_key()
 		file_sig_key = crypto.generate_file_signature_keypair()
 		owner_sig_key = self.user_credential["MSK"]
-		owner = self.name
-		users=[(self.name,True,self.user_credential["MEK"][0:2])]
-		return metadata_encode(file_id,is_folder,file_key,file_sig_key,owner_sig_key,owner,users)
+		owner_pub_ekey = self.user_credential["MEK"][0:2]
+		owner = (self.name,owner_pub_ekey)
+		metadata_with_sig = metadata.metadata_encode(file_id,is_folder,file_key,file_sig_key,owner_sig_key,owner,users)
+		return metadata_with_sig, file_key, file_sig_key
 
 	def getNewInode():
 		inode = self.user_credential["max_inode"]
@@ -157,20 +184,20 @@ class maliciousClient:
 
 	# need to return inode created
 	# specify inode only if you're sure it's available, otherwise the file will be over written!
-	def createFile(self,src,isdir,inode=None):
+	def createFile(self,src,isdir,inode=None,users = []):
 		if inode is None:
 			inode = getNewInode()
-		users = [(self.name,True,self.user_credential["MEK"][0:2])] # add self to lsit of users 
 		if type(src) is str:
 			# need to create metadata
-			metadata = self.createMetadata(inode,isdir,users)
-			file_encryption_key = "??" # need to extract this from metadata
+			meta,file_encryption_key,file_sig_key = self.createMetadata(inode,isdir,users)
 			src = crypto.symmetric_encrypt(src,file_encryption_key)
-			data_sig = crypto.asymmetric_sign(self.user_credential["MSK"],src)
+			data_sig = crypto.asymmetric_sign(file_sig_key,src)
 
 			data_with_sig = metadata.pack_data(data_sig,src)
 			# need to handle error if file transmission fail
-			result = self.fileserver.upload_file(self.name,inode,metadata,data_with_sig,self.token)
+
+			result = self.fileserver.upload_file(self.name,inode,meta,data_with_sig,self.token)
+
 			if result != "success":
 				raise ShellException("Error uploading file: "+result)
 		else: # it's a file, need to find a way to handle this
@@ -183,10 +210,8 @@ class maliciousClient:
 		# download metadata for the file encryption key
 		# I need to know who the owner of the file is, otherwise cannot verify the file
 		# how to access file from different user, if the inode is an integer?
-		metadata = self.getMetadata(inode,owner)
-		metadata
-		
-		file_encryption_key = "??" # need to extract this from metadata
+		meta = self.getMetadata(inode,owner)
+		file_encryption_key = meta[3] 
 		src = crypto.symmetric_encrypt(src,file_encryption_key)
 		data_sig = crypto.asymmetric_sign(self.user_credential["MSK"],src)
 		data_with_sig = metadata.pack_data(data_sig,src)
@@ -195,8 +220,8 @@ class maliciousClient:
 		if result != "success":
 				raise ShellException("Error modifying file: "+result)
 
-	def updateMetadata(self,metadata,inode):
-		result = self.fileserver.modify_metadata(self.name,inode,metadata,self.token)
+	def updateMetadata(self,meta,inode):
+		result = self.fileserver.modify_metadata(self.name,inode,meta,self.token)
 		if result != "success":
 				raise ShellException("Error modifying metadata: "+result)
 

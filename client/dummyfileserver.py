@@ -1,11 +1,11 @@
-import os
+import os,sys
 # use for testing purposes only
-root = "~/Dropbox/6.858/project_dummyserver"
-def read_file(client_id, fileID, token):
-	fullpath = os.path.join(root,client_id)
+root = "/Users/tiam/Dropbox/6.858/project_dummyserver"
+def read_file(client_id, owner,fileID, token):
+	fullpath = os.path.join(root,owner)
 	if not os.path.isdir(fullpath):
 		os.mkdir(fullpath)
-
+	fileID = str(fileID)
 	try:
 		with open(os.path.join(fullpath,fileID+".md"),'r') as f:
 			meta = f.read()
@@ -16,13 +16,15 @@ def read_file(client_id, fileID, token):
 
 		return (meta,data)
 	except:
+		print "Unexpected error:", sys.exc_info()[0]
 		return None
 
 
-def read_metadata(client_id, fileID, token):
-	fullpath = os.path.join(root,client_id)
+def read_metadata(client_id, owner,fileID, token):
+	fullpath = os.path.join(root,owner)
 	if not os.path.isdir(fullpath):
 		os.mkdir(fullpath)
+	fileID = str(fileID)
 	try:
 		with open(os.path.join(fullpath,fileID+".md"),'r') as f:
 			meta = f.read()
@@ -35,14 +37,15 @@ def upload_file(client_id, fileID,  metadata_file, data_file, token):
 	fullpath = os.path.join(root,client_id)
 	if not os.path.isdir(fullpath):
 		os.mkdir(fullpath)
+	fileID = str(fileID)
 	try:
-		with open(os.path.join(fullpath,fileID+".md"),'w') as f:
+		with open(os.path.join(fullpath,str(fileID)+".md"),'w') as f:
 			f.write(metadata_file)
 			f.close()
-		with open(os.path.join(fullpath,fileID+".dat"),'w') as f:
+		with open(os.path.join(fullpath,str(fileID)+".dat"),'w') as f:
 			f.write(data_file)
 			f.close()
-
+		print "file creation successful"
 		return "success"
 	except:
 		return "something failed"
@@ -51,6 +54,7 @@ def modify_metadata(client_id, fileID,  metadata_file, token):
 	fullpath = os.path.join(root,client_id)
 	if not os.path.isdir(fullpath):
 		os.mkdir(fullpath)
+	fileID = str(fileID)
 	try:
 		with open(os.path.join(fullpath,fileID+".md"),'w') as f:
 			f.write(metadata_file)
@@ -64,6 +68,7 @@ def modify_file(client_id,owner, fileID, data_file, token):
 	fullpath = os.path.join(root,owner)
 	if not os.path.isdir(fullpath):
 		os.mkdir(fullpath)
+	fileID = str(fileID)
 	try:
 		with open(os.path.join(fullpath,fileID+".dat"),'w') as f:
 			f.write(data_file)
@@ -74,6 +79,7 @@ def modify_file(client_id,owner, fileID, data_file, token):
 
 def remove_file(client_id,owner, fileID, token):
 	fullpath = os.path.join(root,owner)
+	fileID = str(fileID)
 	if not os.path.isdir(fullpath):
 		os.mkdir(fullpath)
 	try:

@@ -18,9 +18,10 @@ fileserver = dummyfileserver
 def register(name,privatefile):
 	keydist = dummykeydist.dummykeydist()
 	credential = {"max_inode":0L,"MEK":None,"MSK":None}
-	print "creating encryption key..."
+	print "creating encryption keys..."
 	MEK = crypto.generate_user_encryption_keypair()
 	MSK = crypto.generate_user_signature_keypair()
+	print "keys generation successful"
 	if MEK is None or MSK is None:
 		print "Error registering the user, nothing has been done"
 		return 1
@@ -58,11 +59,18 @@ def authenticate(userid,privatekeyfile):
 	'''
 if __name__ =="__main__":
 	print "Welcome to malicious file sharing system"
-	print "please log in:"
-	name = raw_input("username:")
-	privatefile = raw_input("private key file:")
-	first_time = False
-	while not os.path.exist(privatefile):
+	if len(sys.argv) > 2:
+		name = sys.argv[1]
+		privatefile = sys.argv[2]
+		print "Name and password file supplied from command line:"
+		print name
+		print privatefile
+	else:
+		print "please log in:"
+		name = raw_input("username:")
+		privatefile = raw_input("private key file:")
+	first_time = True
+	while not os.path.exists(privatefile):
 		print "cannot find the private key file, do you want to register for a new account (y/n)?"
 		ans = raw_input()
 		if ans == 'y':
@@ -74,8 +82,7 @@ if __name__ =="__main__":
 		else:
 			privatefile = raw_input("re-enter private key file:")
 
-	global client
-	client = shell.maliciousClient(sys.argv[1],sys.argv[2],first_time)
+	client = shell.maliciousClient(name,privatefile,fileserver,key_repo,first_time)
 
 	if client.msg != "pass":
 		print "Failed to authenticate: ",client.msg

@@ -76,8 +76,7 @@ def metadata_encode(file_id, is_folder, file_key, file_sig_key, owner_sig_key, o
     file_verify_key_block = export_key((file_sig_key[0], file_sig_key[1]))
     is_folder_block = pack('B', 0xff if is_folder else 0)
 
-    metadata_block = pack_data(file_id, is_folder_block, file_verify_key_block,
-owner_block, user_block)
+    metadata_block = pack_data(file_id, is_folder_block, file_verify_key_block,owner_block, user_block)
     metadata_sig = asymmetric_sign(owner_sig_key, metadata_block)
 
     metadata_with_sig = pack_data(metadata_sig, metadata_block)
@@ -100,7 +99,8 @@ def extract_owner_from_metadata(metadata):
     metadata_sig, metadata_block = unpack_data(metadata, 2)
     # will need to revisit this function
     file_id, is_folder_block, file_verify_key_block, owner_block,user_block = unpack_data(metadata_block, 4)
-    return owner_block
+    owner_block = unpack_data(owner_block)
+    return owner_block[0]
     
 def metadata_decode(metadata, owner_verify_key, my_user_id, user_dec_key):
     """
