@@ -1,5 +1,6 @@
 from SimpleXMLRPCServer import SimpleXMLRPCServer
 from SimpleXMLRPCServer import SimpleXMLRPCRequestHandler
+from server_func import ServerFuncs
 
 # Restrict to a particular path.
 class RequestHandler(SimpleXMLRPCRequestHandler):
@@ -16,14 +17,6 @@ server.register_introspection_functions()
 
 # Register an instance; all the methods of the instance are
 # published as XML-RPC methods (in this case, just 'div').
-class MyFuncs:
-    def beginAuthenticate(self, userid):
-        # TODO: generate token and persist in local storage
-        token = 0
-        return token
-    def endAuthenticate(self, userid, token):
-        # TODO:
-        return true
 
 server.register_instance(MyFuncs())
 
