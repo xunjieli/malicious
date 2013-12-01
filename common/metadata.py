@@ -59,7 +59,7 @@ def metadata_encode(file_id, is_folder, file_key, file_sig_key, owner_sig_key, o
     file_sig_key_encoded = export_key(file_sig_key)
 
     pack_owner = pack_data(owner[0], file_key, file_sig_key_encoded)
-    owner_block = pack_data(owner[0], asymmetric_encrypt(owner[1], pack_owner))
+    owner_block = pack_data(owner[0], asymmetric_ecb_encrypt_blocks(owner[1], pack_owner))
 
     user_blocks = []
     for user_id, access, user_key in users:
@@ -67,7 +67,7 @@ def metadata_encode(file_id, is_folder, file_key, file_sig_key, owner_sig_key, o
             packed = pack_data(user_id, file_key, file_sig_key_encoded)
         else:
             packed = pack_data(user_id, file_key)
-        block_enc = asymmetric_encrypt(user_key, packed)
+        block_enc = asymmetric_ecb_encrypt_blocks(user_key, packed)
         access_block = pack('B', 0xff if access else 0)  # Security issue? Is it ok to reveal who has write access?
         user_blocks.append(pack_data(user_id, access_block, block_enc))
 
@@ -143,7 +143,7 @@ def metadata_decode(metadata, owner_verify_key, my_user_id, user_dec_key):
         # deal with owner separately
         owner_id, owner_block = unpack_data(owner_block)
         if owner_id == my_user_id:
-            block_dec = asymmetric_decrypt(user_dec_key, owner_block)
+            block_dec = asymmetric_ecb_decrypt_blocks(user_dec_key, owner_block)
             same_user_id, file_key, file_sig_key_encoded = unpack_data(block_dec, 3)
             file_sig_key = import_key(file_sig_key_encoded)
 
@@ -161,7 +161,7 @@ def metadata_decode(metadata, owner_verify_key, my_user_id, user_dec_key):
             users[user_id] = access
 
             if user_id == my_user_id:
-                block_dec = asymmetric_decrypt(user_dec_key, block_enc)
+                block_dec = asymmetric_ecb_decrypt_blocks(user_dec_key, block_enc)
                 if access:
                     same_user_id, file_key, file_sig_key_encoded = unpack_data(block_dec, 3)
                     file_sig_key = import_key(file_sig_key_encoded)

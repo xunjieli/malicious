@@ -109,9 +109,10 @@ class TestCrypto(unittest.TestCase):
     def test_user_encrypting_file_signature_key(self):
         N, e, d = generate_user_encryption_keypair()
         fN, fe, fd = generate_file_signature_keypair()
-        print len(export_key((fN, fe, fd)))
-        encrypted = asymmetric_encrypt((N, e), export_key((fN, fe, fd)))
-        # if this doesn't crash then it's ok
+        encrypted = asymmetric_ecb_encrypt_blocks((N, e), export_key((fN, fe, fd)), USER_ENCRYPTION_KEY_MAX_MSG_SIZE)
+        decrypted = asymmetric_ecb_decrypt_blocks((N, e, d), encrypted)
+        self.assertEqual((fN, fe, fd), import_key(decrypted))
+
 
 if __name__ == '__main__':
     unittest.main()
