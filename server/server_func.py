@@ -1,77 +1,66 @@
+import file_manager
+from ..common.rpc_status_codes import *
+
 class ServerFuncs:
-    def begin_authenticate(self, client_id):
-        # TODO: generate token and persist in local storage
-        token = 0 
-        return token
-    def end_authenticate(self, client_id, token):
-        # TODO:
-        return true
+    def __init__(self, auth_manager):
+        self.auth_manager = auth_manager
+
+    def authenticate(self, client_id, auth_counter, auth_counter_sig):
+        encrypted_aes_key = self.auth_manager.acceptHandshakeRequest(client_id, auth_counter, auth_counter_sig)
+        return encrypted_aes_key
+
+    def check_token(self, client_id, token):
+        return self.auth_manager.verifyToken(client_id, token)
 
     def read_file(self, client_id, owner_id, fileID, token):
-        '''
-            return (metadata file, data file)
-        '''
-        # TODO: check token
+        if not self.check_token(client_id, token): return RPC_WRONG_TOKEN,
         try:
             meta = file_manager.read_metadata(fileID, client_id, owner_id)
             data = file_manager.read_datafile(fileID, client_id, owner_id)
-            return meta, data
+            return RPC_OK, (meta, data)
         except:
             print "Unexpected error read_file"
-            return (None, None) 
+            return RPC_ERROR,
 
     def read_metadata(self, client_id, owner_id, fileID, token):
-        '''
-            return metafile
-        '''
-         # TODO: check token
+        if not self.check_token(client_id, token): return RPC_WRONG_TOKEN,
         try:
-            return file_manager.read_metadata(fileID, client_id, owner_id)
+            return RPC_OK, file_manager.read_metadata(fileID, client_id, owner_id)
         except:
             print "Unexpected error read_metafile"
-            return None
+            return RPC_ERROR,
 
     def upload_file(self, client_id, fileID, metadata_file, data_file, token):
-        '''
-            return "Success" or "Fail"
-        '''
-         # TODO: check token
+        if not self.check_token(client_id, token): return RPC_WRONG_TOKEN,
         try:
-            file_manager.create_file(fileID, client_id, metadata_file,
-datafile)
-            return "Success"
+            file_manager.create_file(fileID, client_id, metadata_file, data_file)
+            return RPC_OK, True
         except:
             print "Unexpected error read_metafile"
-            return "Fail"
+            return RPC_ERROR,
 
     def modify_metadata(self, client_id, owner_id, fileID, metadata_file, token):
-        '''
-            return "Success" or "Fail"
-        '''
-         # TODO: check token
+        if not self.check_token(client_id, token): return RPC_WRONG_TOKEN,
         try:
             file_manager.modify_metadata(fileID, client_id, metadata_file)
-            return "Success"
+            return RPC_OK, True
         except:
             print "Unexpected error read_metafile"
-            return "Fail"
+            return RPC_ERROR,
 
 
     def modify_file(self, client_id, owner_id, fileID, data_file, token):
-        '''
-            return "Success" or "Fail"
-        '''
-         # TODO: check token
+        if not self.check_token(client_id, token): return RPC_WRONG_TOKEN,
         try:
             file_manager.modify_datafile(fileID, client_id, data_file)
-            return "Success"
+            return RPC_OK, True
         except:
             print "Unexpected error read_metafile"
-            return "Fail"
+            return RPC_ERROR,
 
     def remove_file(self, client_id, owner_id, fileID, token):
-        # TODO: check token
+        if not self.check_token(client_id, token): return RPC_WRONG_TOKEN,
         if file_manager.modify_datafile(fileID, client_id, data_file):
-            return "Success"
-        return "Fail"
+            return RPC_OK, True
+        return RPC_ERROR
 
