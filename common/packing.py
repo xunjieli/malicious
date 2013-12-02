@@ -35,7 +35,7 @@ def unpack_data(data, expected_len=None):
 
 def pack_object(obj):
     obj_type = type(obj)
-    if obj == None:
+    if obj is None:
         flag = 1
         data = ''
     elif obj_type == str:
