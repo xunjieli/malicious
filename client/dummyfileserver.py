@@ -45,7 +45,6 @@ def upload_file(client_id, fileID,  metadata_file, data_file, token):
 		with open(os.path.join(fullpath,str(fileID)+".dat"),'w') as f:
 			f.write(data_file)
 			f.close()
-		print "file creation successful"
 		return "success"
 	except:
 		return "something failed"

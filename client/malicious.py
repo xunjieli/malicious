@@ -48,6 +48,14 @@ def execcmd(cmd):
 		client.cd(cmd[1])
 	elif cmd[0] == 'pwd':
 		client.pwd()
+	elif cmd[0] == 'mkdir':
+		if len(cmd) < 2:
+			print "usage: mkdir [directory name]"
+		client.mkdir(cmd[1])
+	elif cmd[0] == 'ls':
+		client.ls()
+	elif cmd[0] == 'debug_see_dir' or cmd[0] == "dsd":
+		client.debug_see_dir()
 	else:
 		print 'Command not found'
 
@@ -69,7 +77,6 @@ if __name__ =="__main__":
 		print "please log in:"
 		name = raw_input("username:")
 		privatefile = raw_input("private key file:")
-	first_time = True
 	while not os.path.exists(privatefile):
 		print "cannot find the private key file, do you want to register for a new account (y/n)?"
 		ans = raw_input()
@@ -78,11 +85,10 @@ if __name__ =="__main__":
 			if stat:
 				print "error while registering for an account, please restart the program"
 				sys.exit(1)
-			first_time = True
 		else:
 			privatefile = raw_input("re-enter private key file:")
 
-	client = shell.maliciousClient(name,privatefile,fileserver,key_repo,first_time)
+	client = shell.maliciousClient(name,privatefile,fileserver,key_repo)
 
 	if client.msg != "pass":
 		print "Failed to authenticate: ",client.msg
