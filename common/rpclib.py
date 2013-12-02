@@ -2,86 +2,64 @@ import os
 import sys
 import socket
 import stat
+import traceback
 import errno
 import json
-from debug import *
+from packing import *
 
 def parse_req(req):
-    #words = req.split(' ')
-    #method = words[0]
-    #args = words[1:]
-    #kwargs = {}
-    #for arg in words[1:]:
-    #    (name, _, val) = arg.partition('=')
-    #    kwargs[unicode(name)] = unicode(val)
-    #return (method, kwargs)
-    req_str = json.JSONDecoder().decode(req)
-    return (req_str['method'],req_str['arg'])
+    method, arg_str = unpack_data(req, 2)
+    args = unpack_object(arg_str)
+    return method, args
 
-def format_req(method, kwargs):
-    req = {};
-    req['method'] = method;
-    req['arg'] = kwargs;
-    return json.JSONEncoder().encode(req)
-    #return '%s %s' % (method,
-     #                 ' '.join(['%s=%s' % (k, v)
-      #                          for (k, v) in kwargs.items()]))
+def format_req(method, args):
+    arg_str = pack_object(args)
+    return pack_data(method, arg_str)
 
 def format_resp(resp):
-    res = {}
-    res['resp'] = resp
-    return json.JSONEncoder().encode(res)
+    return pack_object(resp)
 
 def parse_resp(resp):
-    res_str = json.JSONDecoder().decode(resp)
-    return res_str['resp']
+    return unpack_object(resp)
 
-def buffered_readlines(sock):
-    buf = ''
+def buffered_readstrings(sock):
     while True:
-        while '\n' in buf:
-            (line, nl, buf) = buf.partition('\n')
-            yield line
         try:
-            newdata = sock.recv(4096)
-            if newdata == '':
+            size = sock.recv(4)
+            if size == '':
                 break
-            buf += newdata
-        except IOError, e:
+            size = unpack('<I', size)[0]
+            data = sock.recv(size)
+            yield data
+        except IOError as e:
+            traceback.print_exc()
             if e.errno == errno.ECONNRESET:
                 break
 
 class RpcServer(object):
-    def run_sock(self, sock):
-        lines = buffered_readlines(sock)
+    def run_sock(self, sock, module):
+        lines = buffered_readstrings(sock)
         for req in lines:
-            (method, kwargs) = parse_req(req)
-            m = self.__getattribute__('rpc_' + method)
-            ret = m(**kwargs)
-            sock.sendall(format_resp(ret) + '\n')
+            (method, args) = parse_req(req)
+            m = module.__getattribute__('rpc_' + method)
+            ret = m(*args)
+            data = format_resp(ret)
+            sock.sendall(pack('<I', len(data)))
+            sock.sendall(data)
 
-    def run_sockpath_fork(self, sockpath):
-        if os.path.exists(sockpath):
-            s = os.stat(sockpath)
-            if not stat.S_ISSOCK(s.st_mode):
-                raise Exception('%s exists and is not a socket' % sockpath)
-            os.unlink(sockpath)
+    def run_sockpath_fork(self, port, module):
 
-        server = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-        server.bind(sockpath)
+        server = socket.socket()
+        server.bind(('0.0.0.0', port))
 
-        # Allow anyone to connect.
-        # For access control, use directory permissions.
-        os.chmod(sockpath, 0777)
-
-        server.listen(5)
+        server.listen(1)
         while True:
             conn, addr = server.accept()
             pid = os.fork()
             if pid == 0:
                 # fork again to avoid zombies
                 if os.fork() <= 0:
-                    self.run_sock(conn)
+                    self.run_sock(conn, module)
                     sys.exit(0)
                 else:
                     sys.exit(0)
@@ -91,10 +69,12 @@ class RpcServer(object):
 class RpcClient(object):
     def __init__(self, sock):
         self.sock = sock
-        self.lines = buffered_readlines(sock)
+        self.lines = buffered_readstrings(sock)
 
-    def call(self, method, **kwargs):
-        self.sock.sendall(format_req(method, kwargs) + '\n')
+    def call(self, method, *args):
+        data = format_req(method, args)
+        self.sock.sendall(pack('<I', len(data)))
+        self.sock.sendall(data)
         return parse_resp(self.lines.next())
 
     def close(self):
@@ -108,8 +88,8 @@ class RpcClient(object):
     def __exit__(self, *args):
         self.close()
 
-def client_connect(pathname):
-    sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-    sock.connect(pathname)
+def client_connect(server, port):
+    sock = socket.socket()
+    sock.connect((server, port))
     return RpcClient(sock)
 
