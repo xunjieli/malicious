@@ -250,6 +250,17 @@ class maliciousClient:
 		if result != "success":
 				raise ShellException("Error modifying metadata: "+result)
 
+	# functions for checking file names
+	def checkDirName(self,name):
+		if name.find('/') != -1:
+			return False
+		return True
+
+	def checkFileName(self,name):
+		if name.find('/') != -1:
+			return False
+		return True
+		
 	############# shell command function ##################
 	def ls(self,path = '.'):
 		oldpath = self.path
@@ -267,6 +278,12 @@ class maliciousClient:
 
 	def upload(self,src,dst="."):
 		print "usage: ul [local source] [optional:remote destination]"
+		try:
+			f = open(src,'rb')
+			file_content = f.read()
+		except:
+			raise ShellException("ul: error reading local file")
+		filename = os.path.basename(src)
 		pass
 
 	def download(self,src,dst="."):
@@ -331,10 +348,11 @@ class maliciousClient:
 			path = '/'.join(path)
 			if len(path):
 				pass#self.cd(path)
-
+			if name == '.' or name == ".." or self.checkDirName(name):
+				raise ShellException("mkdir: illegal name: "+ name)
 			if name in self.dir["content"]:
 				# need to check if the directory exists
-				raise ShellException("name already exists: " + name)
+				raise ShellException("mkdir: name already exists: " + name)
 			newdirfile = self.directory_prototype(name);
 			newdirfile = json.dumps(newdirfile);
 			inode = self.createFile(newdirfile,True)

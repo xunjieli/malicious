@@ -40,24 +40,26 @@ def getcmd():
 	return cmd.split(' ')
 
 def execcmd(cmd):
-	global client
-	if cmd[0] == 'cd':
-		if len(cmd) < 2:
-			print "usage: cd [remote directory]"
-			return
-		client.cd(cmd[1])
-	elif cmd[0] == 'pwd':
-		client.pwd()
-	elif cmd[0] == 'mkdir':
-		if len(cmd) < 2:
-			print "usage: mkdir [directory name]"
-		client.mkdir(cmd[1])
-	elif cmd[0] == 'ls':
-		client.ls()
-	elif cmd[0] == 'debug_see_dir' or cmd[0] == "dsd":
-		client.debug_see_dir()
-	else:
-		print 'Command not found'
+	try:
+		if cmd[0] == 'cd':
+			if len(cmd) < 2:
+				print "usage: cd [remote directory]"
+				return
+			client.cd(cmd[1])
+		elif cmd[0] == 'pwd':
+			client.pwd()
+		elif cmd[0] == 'mkdir':
+			if len(cmd) < 2:
+				print "usage: mkdir [directory name]"
+			client.mkdir(cmd[1])
+		elif cmd[0] == 'ls':
+			client.ls()
+		elif cmd[0] == 'debug_see_dir' or cmd[0] == "dsd":
+			client.debug_see_dir()
+		else:
+			print 'Command not found'
+	except ShellException as e:
+		print e.value
 
 def authenticate(userid,privatekeyfile):
 	return "pass"
