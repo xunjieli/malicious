@@ -17,7 +17,7 @@ def read_file(client_id, owner,fileID, token):
 		return (meta,data)
 	except:
 		print "Unexpected error:", sys.exc_info()[0]
-		return None
+		return (None,None)
 
 
 def read_metadata(client_id, owner,fileID, token):
