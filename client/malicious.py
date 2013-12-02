@@ -56,9 +56,13 @@ def execcmd(cmd):
 			client.ls()
 		elif cmd[0] == 'debug_see_dir' or cmd[0] == "dsd":
 			client.debug_see_dir()
+		elif cmd[0] == "ul":
+			if len(cmd) < 2:
+				print "usage: ul [local source] [optional:remote destination]"
+			client.upload(cmd[1:])
 		else:
 			print 'Command not found'
-	except ShellException as e:
+	except shell.ShellException as e:
 		print e.value
 
 def authenticate(userid,privatekeyfile):
