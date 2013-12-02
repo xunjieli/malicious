@@ -26,9 +26,10 @@ def create_file(fileID, owner_id, metadata, datafile):
             return True
     raise PermissionDeniedException()
 
-def modify_metadata(fileID, client_id, owner_id, metadata):
-    if is_owner(owner_id, metadata):
-        with open(metafile_name(fileID, owner_id), 'w+') as f:
+def modify_metadata(fileID, client_id, metadata):
+    # owner_id = client_id
+    if is_owner(client_id, metadata):
+        with open(metafile_name(fileID, client_id), 'w+') as f:
             f.write(metadata)
             return True
     raise PermissionDeniedException()
