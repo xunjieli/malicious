@@ -4,7 +4,7 @@ import dummyfileserver
 
 # http://stackoverflow.com/questions/279237/import-a-module-from-a-relative-path
 import os, sys, inspect
-from ..common import metadata, crypto
+from ..common import metadata, crypto, packing
 
 '''
 specification:
@@ -65,10 +65,8 @@ class maliciousClient:
 		try:
 			with open(privatefile,'r') as f:
 				self.user_credential = json.loads(f.read())
-				for i in range(len(self.user_credential["MEK"])):
-					self.user_credential["MEK"][i] = long(self.user_credential["MEK"][i])
-				for i in range(len(self.user_credential["MSK"])):
-					self.user_credential["MSK"][i] = long(self.user_credential["MSK"][i])
+				self.user_credential["MEK"] = crypto.import_key(self.user_credential["MEK"])
+				self.user_credential["MSK"] = crypto.import_key(self.user_credential["MSK"])
 			self.privatefile_loaded = True
 		except:
 			raise ShellException("failed to load credential file")
@@ -160,7 +158,7 @@ class maliciousClient:
 		owner = metadata.extract_owner_from_metadata(meta)
 		# get the verification key
 		debug("getting verification key for "+ str(owner))
-		verification_key = self.keyrepo.get_verification_key(owner)
+		verification_key = crypto.import_key(self.keyrepo.get_verification_key(owner))
 		debug("attempting to decode metadata")
 		try:
 			meta = metadata.metadata_decode(meta,verification_key,self.name,self.user_credential["MEK"])
@@ -172,7 +170,7 @@ class maliciousClient:
 		file_encryption_key = meta[3]
 		file_verifying_key = meta[2]
 		# verify file
-		(data_sig,src) = metadata.unpack_data(data,2)
+		(data_sig,src) = packing.unpack_data(data,2)
 		debug("verifying file signature")
 		if not crypto.asymmetric_verify(file_verifying_key,src,data_sig):
 			raise ShellException("File Signature Verification Failed")
@@ -192,7 +190,9 @@ class maliciousClient:
 			return None
 		owner = meta[5]
 		# get the verification key
-		verification_key = self.keyrepo.get_verification_key(owner)
+		verification_key = crypto.import_key(self.keyrepo.get_verification_key(owner))
+		print json.dumps(self.user_credential["MEK"])
+		print json.dumps(verification_key)
 		try:
 			meta = metadata.metadata_decode(meta,verification_key,self.name,self.user_credential["MEK"])
 		except metadata.MetadataFormatException as e:
@@ -235,7 +235,7 @@ class maliciousClient:
 			src = crypto.symmetric_encrypt(src,file_encryption_key)
 			data_sig = crypto.asymmetric_sign(file_sig_key,src)
 
-			data_with_sig = metadata.pack_data(data_sig,src)
+			data_with_sig = packing.pack_data(data_sig,src)
 			# need to handle error if file transmission fail
 
 			result = self.fileserver.upload_file(self.name,inode,meta,data_with_sig,self.token)
@@ -261,7 +261,7 @@ class maliciousClient:
 		file_signing_key = meta[4]
 		src = crypto.symmetric_encrypt(src,file_encryption_key)
 		data_sig = crypto.asymmetric_sign(file_signing_key,src)
-		data_with_sig = metadata.pack_data(data_sig,src)
+		data_with_sig = packing.pack_data(data_sig,src)
 		# need to handle error if file transmission fail
 		result = self.fileserver.modify_file(self.name,owner,inode,data_with_sig,self.token)
 		if result != "success":
