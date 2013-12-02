@@ -63,13 +63,32 @@ def metadata_verify(metadata, owner_verify_key):
         return asymmetric_verify(owner_verify_key, metadata_block, metadata_sig)
     except UnpackException as e:
         return False
+
 def extract_owner_from_metadata(metadata):
     metadata_sig, metadata_block = unpack_data(metadata, 2)
     # will need to revisit this function
-    file_id, is_folder_block, file_verify_key_block, owner_block,user_block = unpack_data(metadata_block, 5)
+    file_id, is_folder_block, file_verify_key_block, owner_block, user_block = unpack_data(metadata_block, 5)
     owner_block = unpack_data(owner_block)
     return owner_block[0]
-    
+
+def extract_users_from_metadata(metadata):
+    metadata_sig, metadata_block = unpack_data(metadata, 2)
+    # will need to revisit this function
+    file_id, is_folder_block, file_verify_key_block, owner_block, user_block = unpack_data(metadata_block, 5)
+    users = {}
+    user_blocks = unpack_data(user_block)
+    # other users of the file
+    for user_data in user_blocks:
+            user_id, access_block, block_enc = unpack_data(user_data, 3)
+            if access_block == pack('B', 0xff):
+                access = True
+            elif access_block == pack('B', 0):
+                access = False
+            else:
+                raise MetadataFormatException("Metadata corrupted: access_block invalid")
+            users[user_id] = access
+    return users
+
 
 def metadata_decode(metadata, owner_verify_key, my_user_id, user_dec_key):
     """

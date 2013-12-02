@@ -4,7 +4,7 @@ import sys
 from ..common import metadata
 
 class PermissionDeniedException(Exception):
-    def __init__(self, value):
+    def __init__(self, value=None):
         self.value = value
     def __str__(self):
         return repr(self.value)
@@ -16,26 +16,27 @@ def metafile_name(fileID, owner_id):
 def datafile_name(fileID, owner_id):
     return owner_id +"_%d.data" % fileID
 
-def create_file(fileID, owner_id, metadata, datafile):
-    # owner_id should be the same as client_id
-    if is_owner(owner_id, metadata) and not file_exist(fileID, owner_id):
-        with open(metafile_name(fileID, owner_id), 'w+') as f:
-            f.write(metadata)
-        with open(datafile_name(fileID, owner_id), 'w+') as f:
-            f.write(datafile)
+def create_file(fileID, client_id, metafile, datafile):
+    try:
+        if is_owner(client_id, metafile) and not file_exist(fileID, client_id):
+            with open(metafile_name(fileID, client_id), 'w+') as f:
+                f.write(metafile)
+            with open(datafile_name(fileID, client_id), 'w+') as f:
+                f.write(datafile)
             return True
-    raise PermissionDeniedException()
+    except:
+        raise PermissionDeniedException()
 
-def modify_metadata(fileID, client_id, metadata):
+def modify_metadata(fileID, client_id, metafile):
     # owner_id = client_id
-    if is_owner(client_id, metadata):
+    if is_owner(client_id, metafile):
         with open(metafile_name(fileID, client_id), 'w+') as f:
-            f.write(metadata)
+            f.write(metafile)
             return True
     raise PermissionDeniedException()
 
-def modify_datafile(fileId, client_id, owner_id, datafile):
-    if can_write_datafile(owner_id, metadata):
+def modify_datafile(fileID, client_id, owner_id, datafile):
+    if can_write_datafile(fileID, client_id, owner_id):
         with open(datafile_name(fileID, owner_id), 'w+') as f:
             f.write(datafile)
             return True
@@ -55,8 +56,8 @@ def read_metadata(fileID, client_id, owner_id):
         raise PermissionDeniedException('trying to read metadata file that does not exist')
     else:
         with open(fname, 'r+') as metafile:
-            fid, is_folder, fvk, fek, fsk, users = metadata_decode(metafile, None, None, None)
-            if users.has_key(owner_id):
+            fid, is_folder, fvk, fek, fsk, owner_id, users = metadata.metadata_decode(metafile, None, None, None)
+            if users.has_key(client_id) or owner_id == client_id:
                 return metafile.read()
     raise PermissionDeniedException('no read permission to metadata file requested')
 
@@ -71,24 +72,31 @@ def read_datafile(fileID, client_id, owner_id):
     raise PermissionDeniedException('no read permission to data file requested')
 
 def can_write_datafile(fileID, client_id, owner_id):
+    if client_id == owner_id:
+        return True
+
     fname = owner_id +"_%d.meta" % fileID
     if not os.path.isfile(fname):
         return False
     else:
         with open(fname, 'r+') as metafile:
-            fid, is_folder, fvk, fek, fsk, users = metadata_decode(metafile, None, None, None)
-            if users.has_key(owner_id):
-                return users[owner_id]
+            metafile = metafile.read()
+            users = metadata.extract_users_from_metadata(metafile)
+            if users.has_key(client_id):
+                return users[client_id]
     return False
 
 def can_read_datafile(fileID, client_id, owner_id):
+    if client_id == owner_id:
+        return True
+    ## otherwise check access control list
     fname = metafile_name(fileID, owner_id)
     if not os.path.isfile(fname):
         return False
     else:
         with open(fname, 'r+') as metafile:
-            fid, is_folder, fvk, fek, fsk, owner_id, users = metadata_decode(metafile, None, None, None)
-            return users.has_key(owner_id)
+            fid, is_folder, fvk, fek, fsk, owner_id, users = metadata.metadata_decode(metafile, None, None, None)
+            return users.has_key(client_id)
     return False
 
 # returns whether a file with id fileID exists
@@ -97,6 +105,6 @@ def file_exist(fileID, owner_id):
     data = datafile_name(fileID, owner_id)
     return os.path.isfile(meta) and os.path.isfile(data)
 
-def is_owner(client_id, metadata):
-    # TODO: confirm with Robin on how metadata exposes this info.
-    return True
+def is_owner(client_id, metafile):
+    owner_id = metadata.extract_owner_from_metadata(metafile)
+    return client_id == owner_id
