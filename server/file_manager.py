@@ -10,89 +10,92 @@ class PermissionDeniedException(Exception):
         return repr(self.value)
     __repr__ = __str__
 
-def metafile_name(fileID, userid):
-    return userid +"_%d.meta" % fileID
+def metafile_name(fileID, owner_id):
+    return owner_id +"_%d.meta" % fileID
 
-def datafile_name(fileID, userid):
-    return userid +"_%d.data" % fileID
+def datafile_name(fileID, owner_id):
+    return owner_id +"_%d.data" % fileID
 
-def create_file(fileID, userid, metadata, datafile):
-    if is_owner(userid, metadata) and not file_exist(fileID, userid):
-        with open(metafile_name(fileID, userid), 'w+') as f:
+def create_file(fileID, owner_id, metadata, datafile):
+    # owner_id should be the same as client_id
+    if is_owner(owner_id, metadata) and not file_exist(fileID, owner_id):
+        with open(metafile_name(fileID, owner_id), 'w+') as f:
             f.write(metadata)
-        with open(datafile_name(fileID, userid), 'w+') as f:
+        with open(datafile_name(fileID, owner_id), 'w+') as f:
             f.write(datafile)
             return True
     raise PermissionDeniedException()
 
-def modify_metadata(fileID, userid, metadata):
-    if is_owner(userid, metadata):
-        with open(metafile_name(fileID, userid), 'w+') as f:
+def modify_metadata(fileID, client_id, owner_id, metadata):
+    if is_owner(owner_id, metadata):
+        with open(metafile_name(fileID, owner_id), 'w+') as f:
             f.write(metadata)
             return True
     raise PermissionDeniedException()
 
-def modify_datafile(fileId, userid, datafile):
-    if can_write_datafile(userid, metadata):
-        with open(datafile_name(fileID, userid), 'w+') as f:
+def modify_datafile(fileId, client_id, owner_id, datafile):
+    if can_write_datafile(owner_id, metadata):
+        with open(datafile_name(fileID, owner_id), 'w+') as f:
             f.write(datafile)
             return True
     raise PermissionDeniedException()
 
-def delete_file(fileID, userid):
+def delete_file(fileID, client_id, owner_id):
     ## remove both metadata and datafile
-    os.remove(metafile_name(fileID, userid))
-    os.remove(datafile_name(fileID, userid))
+    if client_id != owner_id:
+        return False
+    os.remove(metafile_name(fileID, owner_id))
+    os.remove(datafile_name(fileID, owner_id))
     return True
 
-def read_metadata(fileID, userid):
-    fname = userid +"_%d.meta" % fileID
+def read_metadata(fileID, client_id, owner_id):
+    fname = owner_id +"_%d.meta" % fileID
     if not os.path.isfile(fname):
         raise PermissionDeniedException('trying to read metadata file that does not exist')
     else:
         with open(fname, 'r+') as metafile:
             fid, is_folder, fvk, fek, fsk, users = metadata_decode(metafile, None, None, None)
-            if users.has_key(userid):
+            if users.has_key(owner_id):
                 return metafile.read()
     raise PermissionDeniedException('no read permission to metadata file requested')
 
-def read_datafile(fileID, userid):
-    fname = userid +"_%d.data" % fileID
+def read_datafile(fileID, client_id, owner_id):
+    fname = owner_id +"_%d.data" % fileID
     if not os.path.isfile(fname):
         raise PermissionDeniedException('trying to read data file that does not exist')
     else:
-        if can_read_datafile(userid, fileID):
+        if can_read_datafile(owner_id, fileID):
             with open(fname, 'r+') as datafile:
                 return datafile.read()
     raise PermissionDeniedException('no read permission to data file requested')
 
-def can_write_datafile(fileID, userid):
-    fname = userid +"_%d.meta" % fileID
+def can_write_datafile(fileID, client_id, owner_id):
+    fname = owner_id +"_%d.meta" % fileID
     if not os.path.isfile(fname):
         return False
     else:
         with open(fname, 'r+') as metafile:
             fid, is_folder, fvk, fek, fsk, users = metadata_decode(metafile, None, None, None)
-            if users.has_key(userid):
-                return users[userid]
+            if users.has_key(owner_id):
+                return users[owner_id]
     return False
 
-def can_read_datafile(fileID, userid):
-    fname = userid +"_%d.meta" % fileID
+def can_read_datafile(fileID, client_id, owner_id):
+    fname = metafile_name(fileID, owner_id)
     if not os.path.isfile(fname):
         return False
     else:
         with open(fname, 'r+') as metafile:
-            fid, is_folder, fvk, fek, fsk, users = metadata_decode(metafile, None, None, None)
-            return users.has_key(userid)
+            fid, is_folder, fvk, fek, fsk, owner_id, users = metadata_decode(metafile, None, None, None)
+            return users.has_key(owner_id)
     return False
 
 # returns whether a file with id fileID exists
-def file_exist(fileID, userid):
-    meta = userid +"_%d.meta" % fileID
-    data = userid +"_%d.data" % fileID
+def file_exist(fileID, owner_id):
+    meta = metafile_name(fileID, owner_id)
+    data = datafile_name(fileID, owner_id)
     return os.path.isfile(meta) and os.path.isfile(data)
 
-def is_owner(userid, metadata):
+def is_owner(client_id, metadata):
     # TODO: confirm with Robin on how metadata exposes this info.
     return True

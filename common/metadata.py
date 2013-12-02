@@ -78,7 +78,8 @@ def metadata_decode(metadata, owner_verify_key, my_user_id, user_dec_key):
     @param owner_verify_key: (N, e), the owner's verification key
     @param my_user_id: the current user's id
     @param user_dec_key: (N, e, d). the user's decryption key
-    @return: a tuple of (file_id, is_folder, file_verify_key, file_key, file_sig_key, users)
+    @return: a tuple of (file_id, is_folder, file_verify_key, file_key,
+file_sig_key, owner_id, users)
              file_id: the string ID of the file
              is_folder: a boolean of whether the file is a folder
              file_verify_key: (N, e), the verification key of the file
