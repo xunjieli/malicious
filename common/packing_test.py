@@ -13,3 +13,10 @@ class PackingTest(unittest.TestCase):
             self.assertFalse(True)
         except UnpackException as e:
             pass
+    def test_pack_object_unpack_object(self):
+        obj = (2, -3, False, None, 'some string', generate_symmetric_key(),
+               ['embedded list', (2, 3, False, (None, ()))])
+        packed = pack_object(obj)
+        self.assertEqual(str, type(packed))
+        unpacked = unpack_object(packed)
+        self.assertEqual(obj, unpacked)

@@ -5,8 +5,8 @@ key = 'hhjdfhsjlssflkk'
 userid = 'test1'
 
 fun = RepoFuncs()
-fun.set_public_key(userid, key)
-actual_key = fun.get_public_key(userid)
+fun.rpc_set_public_key(userid, key)
+actual_key = fun.rpc_get_public_key(userid)
 if actual_key != key:
     print "actual key is: %s" % actual_key
     print "expected key is: %s" % key

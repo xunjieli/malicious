@@ -9,7 +9,7 @@ from ..common import metadata, crypto
 from ..public_key_repo import public_key_repo_func
 
 client = 0
-# key_repo = xmlrpclib.ServerProxy('http://localhost:8008')
+#key_repo = xmlrpclib.ServerProxy('http://localhost:8008')
 # fileserver = xmlrpclib.ServerProxy('http://localhost:8000')
 # keep the test local now so I don't have to run separate process to test this
 key_repo = dummykeydist.dummykeydist()
@@ -25,13 +25,17 @@ def register(name,privatefile):
 	if MEK is None or MSK is None:
 		print "Error registering the user, nothing has been done"
 		return 1
-	credential['MEK'] = MEK
-	credential["MSK"] = MSK
+	credential['MEK'] = crypto.export_key(MEK)
+	credential["MSK"] = crypto.export_key(MSK)
 	# upload key to repo
-	key_repo.set_public_key(name,MEK[0:2])
-	key_repo.set_verification_key(name,MSK[0:2])
-	json.dump(credential,open(privatefile,'wb'))
+	key_repo.set_public_key(name,crypto.export_key(MEK[0:2]))
+	key_repo.set_verification_key(name,crypto.export_key(MSK[0:2]))
+	#key_repo.set_verification_key(name,xmlrpclib.Binary("hahaha2"))
+	#key_repo.set_public_key(name,xmlrpclib.Binary("hahaha"))
 	print "registration succesful"
+	
+	json.dump(credential,open(privatefile,'wb'))
+	
 	return 0
 
 def getcmd():
