@@ -4,12 +4,12 @@ from Crypto.Hash import SHA
 from Crypto.PublicKey import RSA
 from Crypto.Cipher import PKCS1_OAEP
 from Crypto.Signature import PKCS1_PSS
-from struct import pack
-from struct import unpack
+from packing import *
 
 SYMMETRIC_KEY_SIZE = 32
 FILE_SIGNATURE_KEY_SIZE = 1024
-USER_ENCRYPTION_KEY_SIZE = 8192
+USER_ENCRYPTION_KEY_SIZE = 1024
+USER_ENCRYPTION_KEY_MAX_MSG_SIZE = 64
 USER_SIGNATURE_KEY_SIZE = 1024
 SHA_SCHEME = SHA
 
@@ -64,6 +64,23 @@ def asymmetric_decrypt(private_key, ciphertext):
     cipher = PKCS1_OAEP.new(key)
     return cipher.decrypt(ciphertext)
 
+# Encrypt a long message in ECB mode. Only use if reordering / partial replacement attack is not a concern.
+def asymmetric_ecb_encrypt_blocks(public_key, msg, block_size = USER_ENCRYPTION_KEY_MAX_MSG_SIZE):
+    key = RSA.construct(public_key)
+    cipher = PKCS1_OAEP.new(key)
+    num_msg = (len(msg) + block_size - 1) / block_size
+    ciphertexts = [cipher.encrypt(msg[i * block_size : (i+1) * block_size]) for i in range(num_msg)]
+    return pack_data(*ciphertexts)
+
+# return none if invalid data
+def asymmetric_ecb_decrypt_blocks(private_key, ciphertexts):
+    key = RSA.construct(private_key)
+    cipher = PKCS1_OAEP.new(key)
+    try:
+        ciphertexts = unpack_data(ciphertexts)
+    except UnpackException as e:
+        return None
+    return ''.join(cipher.decrypt(ciphertext) for ciphertext in ciphertexts)
 
 # private key is (N, e, d)
 def asymmetric_sign(private_key, msg):
