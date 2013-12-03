@@ -127,3 +127,6 @@ class TestAuth(unittest.TestCase):
 
         #other's token
         self.assertFalse(server_auth.verifyToken(user_ids[0], fake_client_auth.newToken()))
+
+if __name__ == '__main__':
+    unittest.main()
