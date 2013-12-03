@@ -1,5 +1,5 @@
 from public_key_repo_func import RepoFuncs
-from rpclib import *
+from ..common.rpclib import *
 
 """
 A trusted public key distribution server.
