@@ -1,24 +1,25 @@
-from SimpleXMLRPCServer import SimpleXMLRPCServer
-from SimpleXMLRPCServer import SimpleXMLRPCRequestHandler
 from server_func import ServerFuncs
+from server_db import ServerDB
+from ..common.rpclib import *
+from ..common.auth import ServerAuthenticationManager
 
-# Restrict to a particular path.
-class RequestHandler(SimpleXMLRPCRequestHandler):
-    rpc_paths = ('/RPC2',)
+class PublicKeyRepoStub:
+    def __init__(self, host, port):
+        self.host = host
+        self.port = port
+    def get_public_key(self, user_id):
+        rpc = client_connect(self.host, self.port)
+        result = rpc.call('get_public_key', user_id)
+        rpc.close()
+        return result
+    def get_verify_key(self, user_id):
+        rpc = client_connect(self.host, self.port)
+        result = rpc.call('get_verification_key', user_id)
+        rpc.close()
+        return result
 
-# Create server
-server = SimpleXMLRPCServer(("localhost", 8000),
-                            requestHandler=RequestHandler)
-server.register_introspection_functions()
-
-#def helloworld(username):
-#    return 'hello %s' % username
-#server.register_function(helloworld, 'helloworld')
-
-# Register an instance; all the methods of the instance are
-# published as XML-RPC methods (in this case, just 'div').
-
-server.register_instance(MyFuncs())
-
-# Run the server's main loop
-server.serve_forever()
+public_key_service = PublicKeyRepoStub('localhost', 5000)
+server_db = ServerDB('server.db')
+auth_manager = ServerAuthenticationManager(public_key_service, server_db)
+server = ServerFuncs(auth_manager)
+RpcServer().run_sockpath_fork(8000, server)
