@@ -1,5 +1,5 @@
 import json, pickle
-import dummyfileserver
+import dummyfileserver,dummykeydist
 # this module define behavior of the client program
 
 # http://stackoverflow.com/questions/279237/import-a-module-from-a-relative-path
@@ -26,6 +26,28 @@ def confirm(msg):
 def debug(msg):
 	print msg
 	pass
+
+def register(name,privatefile,key_repo):
+	keydist = dummykeydist.dummykeydist()
+	credential = {"max_inode":0L,"MEK":None,"MSK":None}
+	print "creating encryption keys..."
+	MEK = crypto.generate_user_encryption_keypair()
+	MSK = crypto.generate_user_signature_keypair()
+	print "keys generation successful"
+	if MEK is None or MSK is None:
+		print "Error registering the user, nothing has been done"
+		return 1
+	credential['MEK'] = base64.b64encode(crypto.export_key(MEK))
+	credential["MSK"] = base64.b64encode(crypto.export_key(MSK))
+	# upload key to repo
+	key_repo.set_public_key(name,base64.b64encode(crypto.export_key(MEK[0:2])))
+	key_repo.set_verification_key(name,base64.b64encode(crypto.export_key(MSK[0:2])))
+	#key_repo.set_verification_key(name,xmlrpclib.Binary("hahaha2"))
+	#key_repo.set_public_key(name,xmlrpclib.Binary("hahaha"))
+	print "registration succesful"
+	
+	json.dump(credential,open(privatefile,'wb'))
+	return 0
 
 class DirectoryFormatException(Exception):
     def __init__(self, value):
@@ -56,13 +78,26 @@ class maliciousClient:
 		return ("pass",'token')
 	def directory_prototype(self,name):
 		return {"name":name,"content":{}}
-	def __init__(self,name,privatefile,fileserver,keyrepo):
+	def __init__(self,name,privatefile):
 		# need to download root dir from the server
+		
+		# get credential
+		self.fileserver = dummyfileserver
+		self.keyrepo = dummykeydist.dummykeydist()
+		while not os.path.exists(privatefile):
+			print "cannot find the private key file, do you want to register for a new account (y/n)?"
+			ans = raw_input()
+			if ans == 'y':
+				stat = register(name,privatefile,self.keyrepo)
+				if stat:
+					print "error while registering for an account, please restart the program"
+					sys.exit(1)
+			else:
+				privatefile = raw_input("re-enter private key file:")
+
 		self.name = name
 		self.privatefile = privatefile
-		self.privatefile_loaded = False
-		# get credential
-
+		self.privatefile_loaded = False		
 		with open(privatefile,'r') as f:
 			self.user_credential = json.loads(f.read())
 			self.user_credential["MEK"] = crypto.import_key(base64.b64decode(self.user_credential["MEK"]))
@@ -78,8 +113,7 @@ class maliciousClient:
 
 		self.token = token
 
-		self.fileserver = fileserver
-		self.keyrepo = keyrepo
+		
 		# need to do authentication properly
 		
 		if self.user_credential["max_inode"] == 0:
@@ -389,6 +423,51 @@ class maliciousClient:
 				self.updateCurrentDirEntry()	
 		except ShellException as e:
 			raise ShellException("ul: error while uploading file: %s" % e.value)
+
+	def deletei(self,inode):
+		if confirm("Deleting file from inode number may cause directory corruption is the file hasn't been unlinked, continue?"):
+			status = self.fileserver.remove_file(self.name,self.name,int(inode),self.token)
+			# need to check status
+		else:
+			print "operation cancelled"
+	def downloadi(self,inode,owner):
+		(meta,data) = self.getData(inode=int(inode),owner=owner)
+		if data is None:
+			raise ShellException("server returned null data")
+		try:
+			with open(dst,'wb') as f:
+				f.write(data)
+				f.close()
+		except ShellException as e:
+			raise ShellException("dl: error while writing file to local disk")
+
+	def move(self,src,dst):
+		# check if the file exist
+		if src not in self.dir["content"]:
+			raise ShellException("mv: remote source file not found")
+		src_inode = self.dir["content"][src]
+		current_dir_inode = self.inodepath[-1]
+		current_dir_file = self.dir
+		self.saveState()
+		self.cd(dst)
+		dst_dir_inode = self.inodepath[-1]
+		# check if has write permission on both src and dst
+		meta = self.getMetadata(inode=current_dir_inode[0],owner=current_dir_inode[1])
+		if meta[4] is None:
+			raise ShellException("mv: write permission to the current directory needed")
+		meta = self.getMetadata(inode=dst_dir_inode[0],owner=dst_dir_inode[1])
+		if meta[4] is None:
+			raise ShellException("mv: write permission to the destination directory needed")
+		if src in self.dir["content"]:
+			self.restoreState()
+			raise ShellException("mv: The destination file already exist")
+
+		self.dir["content"][src] = src_inode # link
+		self.updateCurrentDirEntry()
+		self.restoreState() # cd back to original path
+		self.dir["content"].pop(src,None) # unlink
+		self.updateCurrentDirEntry()
+
 
 	# need to support downloading the whole directory
 	def download(self,arg):

@@ -1,6 +1,7 @@
 from ..common.crypto import *
 from ..common.auth import *
 from ..common.rpc_status_codes import *
+from ..common.rpclib import *
 # db_service is client-side to save auth_counter
 # needs to support:
 #   new_auth_counter(), which returns an incrementing int
@@ -46,3 +47,13 @@ class FileServerRpcStub:
     modify_file = lambda self, owner_id, file_id, data_file: self.generic_call('modify_file', owner_id, file_id, data_file)
     remove_file = lambda self, owner_id, file_id: self.generic_call('remove_file', owner_id, file_id)
 
+
+class FileServerConnector:
+    def __init__(self, host, port):
+        self.host = host
+        self.port = port
+    def call(self, method, *args):
+        rpc = client_connect(self.host, self.port)
+        result = rpc.call(method, *args)
+        rpc.close()
+        return result
