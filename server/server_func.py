@@ -52,7 +52,7 @@ class ServerFuncs:
     def rpc_modify_file(self, client_id, owner_id, fileID, data_file, token):
         if not self.check_token(client_id, token): return RPC_WRONG_TOKEN,
         try:
-            file_manager.modify_datafile(fileID, client_id, data_file)
+            file_manager.modify_datafile(fileID, client_id, owner_id, data_file)
             return RPC_OK, True
         except:
             print "Unexpected error read_metafile"
@@ -60,7 +60,7 @@ class ServerFuncs:
 
     def rpc_remove_file(self, client_id, owner_id, fileID, token):
         if not self.check_token(client_id, token): return RPC_WRONG_TOKEN,
-        if file_manager.modify_datafile(fileID, client_id, data_file):
+        if file_manager.delete_file(fileID, client_id, owner_id):
             return RPC_OK, True
         return RPC_ERROR
 
