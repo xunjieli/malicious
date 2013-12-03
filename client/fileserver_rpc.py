@@ -26,6 +26,7 @@ class FileServerRpcStub:
         self.authenticator.acceptHandshakeResponse(result[1])
 
     def generic_call(self, name, *args):
+        if self.authenticator is None: self.authenticate()
         result = self.rpc_client.call(name, self.user_id, *args, self.authenticator.newToken())
         if result[0] == RPC_WRONG_TOKEN:
             self.authenticate()
