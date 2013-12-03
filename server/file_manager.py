@@ -56,9 +56,12 @@ def read_metadata(fileID, client_id, owner_id):
         raise PermissionDeniedException('trying to read metadata file that does not exist')
     else:
         with open(fname, 'r+') as metafile:
-            fid, is_folder, fvk, fek, fsk, owner_id, users = metadata.metadata_decode(metafile, None, None, None)
-            if users.has_key(client_id) or owner_id == client_id:
+            if client_id == owner_id:
                 return metafile.read()
+            content = metafile.read()
+            users = metadata.extract_users_from_metadata(content)
+            if users.has_key(client_id):
+                return content
     raise PermissionDeniedException('no read permission to metadata file requested')
 
 def read_datafile(fileID, client_id, owner_id):
@@ -66,7 +69,7 @@ def read_datafile(fileID, client_id, owner_id):
     if not os.path.isfile(fname):
         raise PermissionDeniedException('trying to read data file that does not exist')
     else:
-        if can_read_datafile(owner_id, fileID):
+        if can_read_datafile(fileID, client_id, owner_id):
             with open(fname, 'r+') as datafile:
                 return datafile.read()
     raise PermissionDeniedException('no read permission to data file requested')
@@ -95,7 +98,7 @@ def can_read_datafile(fileID, client_id, owner_id):
         return False
     else:
         with open(fname, 'r+') as metafile:
-            fid, is_folder, fvk, fek, fsk, owner_id, users = metadata.metadata_decode(metafile, None, None, None)
+            users = metadata.extract_users_from_metadata(metafile.read())
             return users.has_key(client_id)
     return False
 
