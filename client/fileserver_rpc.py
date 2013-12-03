@@ -3,9 +3,8 @@ from ..common.auth import *
 from ..common.rpc_status_codes import *
 
 class FileServerRpcStub:
-    def __init__(self, rpc_client, db_service):
+    def __init__(self, rpc_client):
         self.rpc_client = rpc_client
-        self.db_service = db_service
         self.user_id = None
         self.user_private_key = None
         self.user_sign_key = None
@@ -18,7 +17,10 @@ class FileServerRpcStub:
 
     def authenticate(self):
         self.authenticator = ClientAuthenticator(self.user_private_key, self.user_sign_key)
-        auth_counter = self.db_service.new_auth_counter()
+        auth_counter_result = self.rpc_client.call('get_auth_counter', self.user_id)
+        if auth_counter_result[0] != RPC_OK:
+            raise Exception("Cannot get authentication counter")
+        auth_counter = auth_counter_result[1] + 1
         result = self.rpc_client.call('authenticate', self.user_id,
                 *self.authenticator.makeHandshakeRequest(auth_counter))
         if result[0] != RPC_OK:

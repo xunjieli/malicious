@@ -64,3 +64,6 @@ class ServerFuncs:
             return RPC_OK, True
         return RPC_ERROR
 
+    def rpc_get_auth_counter(self, client_id):
+        # TODO: Implement something here (use a DB for example)
+        return RPC_OK, 0
