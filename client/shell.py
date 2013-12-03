@@ -1,9 +1,9 @@
-import json
+import json, pickle
 import dummyfileserver
 # this module define behavior of the client program
 
 # http://stackoverflow.com/questions/279237/import-a-module-from-a-relative-path
-import os, sys, inspect
+import os, sys, inspect, base64
 from ..common import metadata, crypto, packing
 
 '''
@@ -62,14 +62,14 @@ class maliciousClient:
 		self.privatefile = privatefile
 		self.privatefile_loaded = False
 		# get credential
-		try:
-			with open(privatefile,'r') as f:
-				self.user_credential = json.loads(f.read())
-				self.user_credential["MEK"] = crypto.import_key(self.user_credential["MEK"])
-				self.user_credential["MSK"] = crypto.import_key(self.user_credential["MSK"])
-			self.privatefile_loaded = True
-		except:
-			raise ShellException("failed to load credential file")
+
+		with open(privatefile,'r') as f:
+			self.user_credential = json.loads(f.read())
+			self.user_credential["MEK"] = crypto.import_key(base64.b64decode(self.user_credential["MEK"]))
+			self.user_credential["MSK"] = crypto.import_key(base64.b64decode(self.user_credential["MSK"]))
+		self.privatefile_loaded = True
+
+
 		# authenticate
 		(msg,token) = self.authenticate(name,self.user_credential["MEK"])
 		self.msg = msg
@@ -118,6 +118,7 @@ class maliciousClient:
 		if not len(path):
 			return
 		# figure out what's the next inode number
+
 		if path == "..":
 			if len(self.inodepath) > 1:
 				pathinode = self.inodepath[-2]
@@ -126,12 +127,13 @@ class maliciousClient:
 		elif path == ".":
 			return
 		else:
-			if self.dir["content"][path][0] != "dir":
+			if path not in self.dir["content"] or self.dir["content"][path][0] != "dir":
 				raise ShellException("The given directory in the path does not exist: " + path)
 			else:
 				pathinode = self.dir["content"][path][1:3]
 		# get metadata from the server
 		(meta,dirfile) = self.getData(inode=pathinode[0],owner=pathinode[1])
+		# need to check permission
 		self.dir = json.loads(dirfile)
 		# update internal state
 		if path == "..":
@@ -149,35 +151,34 @@ class maliciousClient:
 			owner = self.name
 		# need to download then check integrity
 
-		(meta,data) = self.fileserver.read_file(self.name,owner,inode,self.token)
-		debug("got data from server")
-		if meta is None:
-			return (None,None)
+		alldata = self.fileserver.read_file(self.name,owner,inode,self.token)
+		if alldata is None:
+			raise ShellException("The server returns nothing")
+		meta = alldata[0]
+		data = alldata[1]
 		# need to check integrity of meta data
-		debug("extracting owner id")
 		owner = metadata.extract_owner_from_metadata(meta)
 		# get the verification key
-		debug("getting verification key for "+ str(owner))
-		verification_key = crypto.import_key(self.keyrepo.get_verification_key(owner))
-		debug("attempting to decode metadata")
+		verification_key = crypto.import_key(base64.b64decode(self.keyrepo.get_verification_key(owner)))
 		try:
 			meta = metadata.metadata_decode(meta,verification_key,self.name,self.user_credential["MEK"])
 		except metadata.MetadataFormatException as e:
 			raise ShellException("Metadata Malformed: "+e.value)
 		# check if metadata points to the correct file
-		if meta[0] != self.constructFileID(owner,inode):
-			raise ShellException("FileID mismatch - expected: %s, received: %s"%(self.constructFileID(owner,inode),meta[0]))
+		if not self.checkFileID(meta[0],owner,inode):
+			raise ShellException("FileID mismatch - expected: %s, received: %s"%(self.encodeFileID(owner,inode),meta[0]))
 		file_encryption_key = meta[3]
 		file_verifying_key = meta[2]
-		# verify file
-		(data_sig,src) = packing.unpack_data(data,2)
-		debug("verifying file signature")
-		if not crypto.asymmetric_verify(file_verifying_key,src,data_sig):
-			raise ShellException("File Signature Verification Failed")
 		# need to check file id
 		if meta[0] != owner+'_'+str(inode):
 			raise ShellException("The server returned the wrong file (expected: %s, received %s)"% (owner+'_'+str(inode),meta[0]))
-		debug("decrypting file")
+		if file_encryption_key is None:
+			raise ShellException("Cannot decrypt requested file: you don't have read permission")
+		
+		# verify file
+		(data_sig,src) = packing.unpack_data(data,2)
+		if not crypto.asymmetric_verify(file_verifying_key,src,data_sig):
+			raise ShellException("File Signature Verification Failed")
 		data = crypto.symmetric_decrypt(src,file_encryption_key)
 		return (meta,data)
 
@@ -188,11 +189,9 @@ class maliciousClient:
 		meta = self.fileserver.read_metadata(self.name,owner,inode,self.token)
 		if meta is None:
 			return None
-		owner = meta[5]
+		owner = metadata.extract_owner_from_metadata(meta)
 		# get the verification key
-		verification_key = crypto.import_key(self.keyrepo.get_verification_key(owner))
-		print json.dumps(self.user_credential["MEK"])
-		print json.dumps(verification_key)
+		verification_key = crypto.import_key(base64.b64decode(self.keyrepo.get_verification_key(owner)))
 		try:
 			meta = metadata.metadata_decode(meta,verification_key,self.name,self.user_credential["MEK"])
 		except metadata.MetadataFormatException as e:
@@ -205,11 +204,26 @@ class maliciousClient:
 	def getPath(self):
 		return self.path[-1]
 
-	def constructFileID(self,owner,inodenumber):
+	def encodeFileID(self,owner,inodenumber):
 		return str(owner) + "_" + str(inodenumber)
 
+	def decodeFileID(self,fileid):
+		try:
+			idx = fileid.rfind('_')
+			return (int(fileid[(idx+1):]),fileid[:idx])
+		except:
+			raise ShellException("error while decoding file id")
+	def checkFileID(self,fileid,owner,inode):
+		try:
+			inumber,own = self.decodeFileID(fileid)
+			if int(inode) == inumber and own == str(owner):
+				return True
+		except:
+			pass
+		return False
+
 	def createMetadata(self,inode,isdir,users=[]):
-		file_id =  self.constructFileID(self.name,inode)
+		file_id =  self.encodeFileID(self.name,inode)
 		is_folder = isdir
 		file_key = crypto.generate_symmetric_key()
 		file_sig_key = crypto.generate_file_signature_keypair()
@@ -241,7 +255,7 @@ class maliciousClient:
 			result = self.fileserver.upload_file(self.name,inode,meta,data_with_sig,self.token)
 
 			if result != "success":
-				raise ShellException("Error uploading file: "+result)
+				raise ShellException("Error creating file: "+result)
 		else: # it's a file, need to find a way to handle this
 			pass
 		if isdir:
@@ -259,6 +273,8 @@ class maliciousClient:
 		meta = self.getMetadata(inode,owner)
 		file_encryption_key = meta[3]
 		file_signing_key = meta[4]
+		if file_signing_key is None: # don't have write access
+			raise ShellException("You don't have write permission to this file")
 		src = crypto.symmetric_encrypt(src,file_encryption_key)
 		data_sig = crypto.asymmetric_sign(file_signing_key,src)
 		data_with_sig = packing.pack_data(data_sig,src)
@@ -270,14 +286,17 @@ class maliciousClient:
 	def updateMetadata(self,meta,inode):
 		# assume meta is the same as the one returned by getMetadata
 		# might need to do conversion from list to cell
-		userslist = []
-		for key in meta[6]:
-			userslist.append(meta[6][key])
-		meta[6] = userslist
-		meta_withsig = metadata.metadata_encode(meta[0],meta[1],meta[2],meta[3],meta[4],meta[5],meta[6])
+		file_id = meta[0]
+		is_folder = meta[1]
+		file_key = meta[3]
+		file_sig_key = meta[4]
+		owner_sig_key = self.user_credential["MSK"]
+		owner = (meta[5],self.user_credential["MEK"][0:2])
+		users = meta[6]
+		meta_withsig = metadata.metadata_encode(file_id, is_folder, file_key, file_sig_key, owner_sig_key, owner, users)
 		result = self.fileserver.modify_metadata(self.name,inode,meta_withsig,self.token)
 		if result != "success":
-				raise ShellException("Error modifying metadata: "+result)
+			raise ShellException("Error modifying metadata: "+result)
 
 	# functions for checking file names
 	def checkDirName(self,name):
@@ -294,7 +313,7 @@ class maliciousClient:
 		oldpath = self.path
 		oldinodes = self.inodepath
 		olddir = self.dir
-		self.oldstate = (oldpath,oldinode,olddir,True)
+		self.oldstate = [oldpath,oldinodes,olddir,True]
 
 	def restoreState(self):
 		if self.oldstate[3]:
@@ -326,7 +345,7 @@ class maliciousClient:
 	# need to support uploading the entire directory later
 	def upload(self,arg):
 		if len(arg) < 2:
-			dst = "."
+			dst = ""
 		else:
 			dst = arg[1]
 		src = arg[0]
@@ -337,26 +356,18 @@ class maliciousClient:
 		except:
 			raise ShellException("ul: error reading local file")
 		# sanitize remote path
-		path = dst.split('/')
-		filename = path.pop()
-		if filename == '.' or filename == '..':
-			path.append(filename)
-			filename = ""
-		path = '/'.join(path)
+		filename = dst
 		if len(filename) == 0:
 			filename = os.path.basename(src)
-		if self.checkFileName(filename):
+		if not self.checkFileName(filename):
 			raise ShellException("ul: invalid filename given: "+filename)
-		self.saveState()
 		try:
-			self.cd(path)
 			# check if file exist
 			if filename in self.dir["content"]:
 				# check if the name is a directory
 				if self.dir["content"][filename][0] == "dir":
 					print "directory %s already exists at path %s" % (filename,'/'.join(self.path))
 					print "Please specified a new file name, operation cancelled"
-					self.restoreState()
 					return
 				# check against malformed directory entry
 				if self.dir["content"][filename][0] != "file":
@@ -365,83 +376,173 @@ class maliciousClient:
 				print "warning: file %s already exists at path %s" % (filename,'/'.join(self.path))
 				if not confirm("Overwrite? This will not change permission to the file"):
 					print "Operation cancelled"
-					self.restoreState()
 					return
 				inode = self.dir["content"][filename]
 				self.updateFile(file_content,inode[1],inode[2])
-			
 			else: # file does not exist
+				meta = self.getMetadata(inode=self.inodepath[-1][0],owner=self.inodepath[-1][1])
+				if meta[4] is None:
+					raise ShellException("cannot create file: you don't have write permission to the folder")
 				inode = self.createFile(file_content,False)
 				self.dir["content"][filename] = inode
 				# update the directory
-				self.updateCurrentDirEntry()
-			self.restoreState()
+				self.updateCurrentDirEntry()	
 		except ShellException as e:
-			self.restoreState()
 			raise ShellException("ul: error while uploading file: %s" % e.value)
 
 	# need to support downloading the whole directory
 	def download(self,arg):
-		print "usage: dl [remote source] [optional:local destination]"
+		src = arg[0]
 		if len(arg) < 2:
-			dst = "."
+			dst = os.path.join('.',src)
 		else:
 			dst = arg[1]
-		src = arg[0]
-		path = src.split('/')
-		filename = path.pop()
-		if filename == '.' or filename == '..':
-			path.append(filename)
-			filename = ""
-		path = '/'.join(path)
-		if len(filename) == 0:
-			raise ShellException("dl: no filename given")
-		path = '/'.join(path)
-		
-		if self.checkFileName(filename):
+		filename = src
+		if not self.checkFileName(filename):
 			raise ShellException("dl: invalid filename given: "+filename)
-		self.saveState()
+
 		try:
-			self.cd(path)
+
 			if filename in self.dir["content"]:
 				# check if the name is a directory
 				if self.dir["content"][filename][0] == "dir":
 					print "dl: given file %s  is a directory at path %s" % (filename,'/'.join(self.path))
 					print "operation cancelled"
-					self.restoreState()
 					return
 				# check against malformed directory entry
 				if self.dir["content"][filename][0] != "file":
 					raise ShellException("dl: current directory (%s) malformed, specified file (%s) exists but is not file or dir" %('/'.join(self.path),filename) )
 				inode = self.dir["content"][filename]
-				(meta,data) = self.getData(inode[0],inode[1])
+				(meta,data) = self.getData(inode=inode[1],owner=inode[2])
 				if data is None:
-					raise ShellException("dl: server returned null data")
+					raise ShellException("server returned null data")
 				try:
 					with open(dst,'wb') as f:
 						f.write(data)
 						f.close()
 				except ShellException as e:
 					raise ShellException("dl: error while writing file to local disk")
-
-			
 			else: # file does not exist
-				raise ShellException("dl: remote file not found")
-			self.restoreState()
+				raise ShellException("remote file not found")
 		except ShellException as e:
-			self.restoreState()
-			raise ShellException("ul: error while uploading file: %s" % e.value)
+			raise ShellException("dl: error while downloading file: %s" % e.value)
+
 	def rename(self,src,dst):
-		print "usage: rename [remote source] [new name]"
-		pass
+		meta = self.getMetadata(inode=self.inodepath[-1][0],owner=self.inodepath[-1][1])
+		if meta[4] is None:
+			raise ShellException("rename: write permission to the current directory needed")
+		try:
+			if not self.checkFileName(dst):
+				raise ShellException("rename: illegal name: "+ dst)
+			if src not in self.dir["content"]:
+				# need to check if the directory exists
+				raise ShellException("rename: source name doesn't exist: " + src)
+			if dst in self.dir["content"]:
+				# need to check if the directory exists
+				raise ShellException("rename: destination name doesn't exist: " + dst)
+			inode_info = self.dir["content"][src]
+			self.dir["content"].pop(src,None)
+			self.dir["content"][dst] = inode_info
+			self.updateCurrentDirEntry()
+		except ShellException as e:
+			raise ShellException(e.value)
 
-	def delete(self,file):
-		print "usage: rm [remote file]"
-		pass
+	# this delete everything in the current directory
+	# return true for success, false if some file/directory cannot be removed
+	def delete_all(self):
+		meta = self.getMetadata(inode=self.inodepath[-1][0],owner=self.inodepath[-1][1])
+		if meta[4] is None and len(self.dir["content"]) > 0:
+			return False # no write permission to current directory, cannot remove any file
+		success = True
+		allfile = []
+		for src in self.dir["content"]:
+			allfile.append(src)
+		for i in range(len(allfile)):
+			src = allfile[i]
+			inode = self.dir["content"][src]
+			if inode[0] == "file": # this case is easy
+				success = success and self.delete_file(src)
+			elif inode[0] == "dir": # need to recurse into sub directory
+				try:
+					self.cd(src)
+					good_to_go = True
+				except:
+					success = False
+					good_to_go = False
+				if good_to_go:
+					success = self.delete_all()
+					self.cd('..')
+					success = success and self.delete_file(src)
+			else:
+				return False
+		return success
 
-	def share(self,cmd):
-		print "usage: share [remote file] user1 user2 user3 ..."
-		pass
+	def delete_file(self,src):
+		success = True
+		inode = self.dir["content"][src]
+		olddir = self.dir
+		try:
+			self.dir["content"].pop(src,None)
+			self.updateCurrentDirEntry()
+			if inode[2] == self.name: # if own the file, remove it from server
+				status = self.fileserver.remove_file(self.name,self.name,inode[1],self.token)
+			if status != "success":
+				raise ShellException("failed to remove file from the server")
+		except:
+			self.dir = olddir
+			self.updateCurrentDirEntry() # do this in case it fails after updating the current directory
+			success = False
+		return success
+
+	def delete(self,src):
+		meta = self.getMetadata(inode=self.inodepath[-1][0],owner=self.inodepath[-1][1])
+		if meta[4] is None:
+			raise ShellException("rm: write permission to the current directory needed")
+		if src not in self.dir["content"]:
+			raise ShellException("rm: file not found")
+		inode = self.dir["content"][src]
+		if inode[0] == "file": # this case is easy
+			success = self.delete_file(src)
+		elif inode[0] == "dir": # need to recurse into sub directory
+			try:
+				self.cd(src)
+				good_to_go = True
+			except:
+				success = False
+				good_to_go = False
+			if good_to_go:
+				success = self.delete_all()
+				self.cd('..')
+				success = success and self.delete_file(src)
+		else:
+			raise ShellException("rm: the given file is malformed")
+		if not success:
+			print "rm: some file were not removed successfully, they may belong to other user"		
+
+	def share(self,src,users,access = 0):
+		# get the inode
+		if src not in self.dir["content"]:
+			raise ShellException("share: file not found") 
+		inode = self.dir["content"][src]
+		meta = self.getMetadata(inode=inode[1],owner=inode[2])
+		if inode[2] != self.name or meta[5] != self.name:
+			raise ShellException("share: only the owner (%s) of the file can change permission" % meta[5])
+		current_users = meta[6]
+		new_users = []
+		for usr in current_users:
+			new_users.append(usr)
+		# list of users that doesn't need to change permission
+		new_users = [usr for usr in new_users if usr not in users]
+		meta_users = []
+		for usr in new_users:
+			public_key = crypto.import_key(base64.b64decode(self.keyrepo.get_public_key(usr)))
+			meta_users.append((usr,current_users[usr],public_key))
+		if access > 0:
+			for usr in users:
+				public_key = crypto.import_key(base64.b64decode(self.keyrepo.get_public_key(usr)))
+				meta_users.append((usr,access == 2,public_key))
+		new_meta = (meta[0],meta[1],meta[2],meta[3],meta[4],meta[5],meta_users)
+		self.updateMetadata(new_meta,inode[1])
 
 	def pwd(self):
 		# print "usage: pwd"
@@ -476,16 +577,11 @@ class maliciousClient:
 
 
 	def mkdir(self,name):
-		# need to sanitize name
-		
-
+		# check permission
+		meta = self.getMetadata(inode=self.inodepath[-1][0],owner=self.inodepath[-1][1])
+		if meta[4] is None:
+			raise ShellException("mkdir: write permission to the current directory needed")
 		try:
-			path = name.split('/')
-			name = path[-1]
-			path.pop()
-			path = [p for p in path if len(p)]
-			path = '/'.join(path)
-			
 			if not self.checkDirName(name):
 				raise ShellException("mkdir: illegal name: "+ name)
 			if name in self.dir["content"]:
@@ -504,13 +600,18 @@ class maliciousClient:
 		print "dir:       ", json.dumps(self.dir)
 		print "path:      ", json.dumps(self.path)
 		print "inodepath: ", json.dumps(self.inodepath)
-
+		#print "credential:", json.dumps(self.user_credential)
+	def debug_see_credential(self):
+		print "credential:", json.dumps(self.user_credential)
 
 	def __del__(self):
 		# this saves persistent state onto disk
 		try:
 			if self.privatefile_loaded:
 				with open(self.privatefile,'wb') as f:
+					self.user_credential["MEK"] = base64.b64encode(crypto.export_key(self.user_credential["MEK"]))
+					self.user_credential["MSK"] = base64.b64encode(crypto.export_key(self.user_credential["MSK"]))
+		
 					json.dump(self.user_credential,f)
 		except:
 			raise ShellException("failed to save credential file")

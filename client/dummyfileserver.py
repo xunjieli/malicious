@@ -76,7 +76,7 @@ def modify_file(client_id,owner, fileID, data_file, token):
 	except:
 		return "something failed"
 
-def remove_file(client_id,owner, fileID, token):
+def remove_file(client_id, owner, fileID, token):
 	fullpath = os.path.join(root,owner)
 	fileID = str(fileID)
 	if not os.path.isdir(fullpath):

@@ -13,8 +13,10 @@ class dummykeydist:
 			self.allusers = json.load(open(self.file,'rb'))
 		except:
 			self.allusers = {}
+		
 
 	def get_public_key(self,userid):
+		
 		try:
 			return self.allusers[userid]["pkey"]
 		except:
@@ -25,7 +27,7 @@ class dummykeydist:
 		try:
 			return self.allusers[userid]["skey"]
 		except:
-			print "dummykeydist: error while reading public signing key"
+			print "dummykeydist: error while reading public signing key",sys.exc_info()[0]
 			return None
 	def set_public_key(self,userid,key):
 		if userid not in self.allusers:
@@ -38,4 +40,5 @@ class dummykeydist:
 		self.allusers[userid]["skey"] = key
 
 	def __del__(self):
+		print "keyrepo object is being destroyed"
 		json.dump(self.allusers,open(self.file,'wb'))

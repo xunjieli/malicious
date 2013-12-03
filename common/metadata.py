@@ -79,6 +79,7 @@ def extract_users_from_metadata(metadata):
     user_blocks = unpack_data(user_block)
     # other users of the file
     for user_data in user_blocks:
+            print user_data
             user_id, access_block, block_enc = unpack_data(user_data, 3)
             if access_block == pack('B', 0xff):
                 access = True

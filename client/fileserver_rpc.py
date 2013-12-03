@@ -1,7 +1,9 @@
 from ..common.crypto import *
 from ..common.auth import *
 from ..common.rpc_status_codes import *
-
+# db_service is client-side to save auth_counter
+# needs to support:
+#   new_auth_counter(), which returns an incrementing int
 class FileServerRpcStub:
     def __init__(self, rpc_client, db_service):
         self.rpc_client = rpc_client
