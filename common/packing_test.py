@@ -20,3 +20,6 @@ class PackingTest(unittest.TestCase):
         self.assertEqual(str, type(packed))
         unpacked = unpack_object(packed)
         self.assertEqual(obj, unpacked)
+
+if __name__ == '__main__':
+    unittest.main()

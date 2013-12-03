@@ -5,14 +5,14 @@ class ServerFuncs:
     def __init__(self, auth_manager):
         self.auth_manager = auth_manager
 
-    def authenticate(self, client_id, auth_counter, auth_counter_sig):
+    def rpc_authenticate(self, client_id, auth_counter, auth_counter_sig):
         encrypted_aes_key = self.auth_manager.acceptHandshakeRequest(client_id, auth_counter, auth_counter_sig)
         return encrypted_aes_key
 
     def check_token(self, client_id, token):
         return self.auth_manager.verifyToken(client_id, token)
 
-    def read_file(self, client_id, owner_id, fileID, token):
+    def rpc_read_file(self, client_id, owner_id, fileID, token):
         if not self.check_token(client_id, token): return RPC_WRONG_TOKEN,
         try:
             meta = file_manager.read_metadata(fileID, client_id, owner_id)
@@ -22,7 +22,7 @@ class ServerFuncs:
             print "Unexpected error read_file"
             return RPC_ERROR,
 
-    def read_metadata(self, client_id, owner_id, fileID, token):
+    def rpc_read_metadata(self, client_id, owner_id, fileID, token):
         if not self.check_token(client_id, token): return RPC_WRONG_TOKEN,
         try:
             return RPC_OK, file_manager.read_metadata(fileID, client_id, owner_id)
@@ -30,7 +30,7 @@ class ServerFuncs:
             print "Unexpected error read_metafile"
             return RPC_ERROR,
 
-    def upload_file(self, client_id, fileID, metadata_file, data_file, token):
+    def rpc_upload_file(self, client_id, fileID, metadata_file, data_file, token):
         if not self.check_token(client_id, token): return RPC_WRONG_TOKEN,
         try:
             file_manager.create_file(fileID, client_id, metadata_file, data_file)
@@ -39,7 +39,7 @@ class ServerFuncs:
             print "Unexpected error read_metafile"
             return RPC_ERROR,
 
-    def modify_metadata(self, client_id, owner_id, fileID, metadata_file, token):
+    def rpc_modify_metadata(self, client_id, owner_id, fileID, metadata_file, token):
         if not self.check_token(client_id, token): return RPC_WRONG_TOKEN,
         try:
             file_manager.modify_metadata(fileID, client_id, metadata_file)
@@ -49,7 +49,7 @@ class ServerFuncs:
             return RPC_ERROR,
 
 
-    def modify_file(self, client_id, owner_id, fileID, data_file, token):
+    def rpc_modify_file(self, client_id, owner_id, fileID, data_file, token):
         if not self.check_token(client_id, token): return RPC_WRONG_TOKEN,
         try:
             file_manager.modify_datafile(fileID, client_id, data_file)
@@ -58,7 +58,7 @@ class ServerFuncs:
             print "Unexpected error read_metafile"
             return RPC_ERROR,
 
-    def remove_file(self, client_id, owner_id, fileID, token):
+    def rpc_remove_file(self, client_id, owner_id, fileID, token):
         if not self.check_token(client_id, token): return RPC_WRONG_TOKEN,
         if file_manager.modify_datafile(fileID, client_id, data_file):
             return RPC_OK, True
