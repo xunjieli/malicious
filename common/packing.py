@@ -25,7 +25,7 @@ def unpack_data(data, expected_len=None):
         raise UnpackException('Packed data does not have the same number of entries')
     lens = unpack('<' + str(n) + 'I', data[4:4 + 4 * n])
     if any(x < 0 for x in lens) or sum(lens) != len(data) - (n+1)*4:
-        raise UnpackException('Packed data does not have valid lengths')
+        raise UnpackException('Packed data does not have valid lengths: sum of ' + repr(lens) + " != " + str(len(data) - (n+1)*4))
     ptr = (n+1)*4
     result = []
     for l in lens:

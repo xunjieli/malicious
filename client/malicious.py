@@ -16,8 +16,8 @@ client = None
 # keep the test local now so I don't have to run separate process to test this
 #key_repo = dummykeydist.dummykeydist()
 #fileserver = dummyfileserver
-key_repo = PublicKeyRepoStub('localhost', global_configs.KEYREPO_PORT)
-fileserver = fileserver_rpc.FileServerRpcStub(fileserver_rpc.FileServerConnector('localhost', global_configs.RELAY_PORT))
+key_repo = PublicKeyRepoStub('localhost', global_configs.KEYREPO_RELAY_PORT)
+fileserver = fileserver_rpc.FileServerRpcStub(fileserver_rpc.FileServerConnector('localhost', global_configs.FILESERVER_RELAY_PORT))
 db = client_db.ClientDB('client.db')
 
 def register(name, db):
@@ -101,6 +101,8 @@ def execcmd(cmd):
             print 'Command not found'
     except shell.ShellException as e:
         print e.value
+    except shell.ClientException as e:
+        print e.value
 
 
 def run():
@@ -139,5 +141,5 @@ def run():
             execcmd(cmd)
             cmd = getcmd()
 
-if __name__ == 'main':
+if __name__ == '__main__':
     run()

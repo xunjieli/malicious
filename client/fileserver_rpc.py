@@ -55,9 +55,6 @@ class FileServerConnector:
         self.port = port
     def call(self, method, *args):
         rpc = client_connect(self.host, self.port)
-        friendlyify = lambda x: x if len(x)<10 else x[:10]+'...'
-        friendly_args = [friendlyify(str(x)) for x in args]
-        print "RPC: %s(%s)" %(method, ', '.join(friendly_args))
 
         result = rpc.call(method, *args)
         rpc.close()

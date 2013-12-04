@@ -272,7 +272,7 @@ class MaliciousClient:
         return self.getMetadata(handle)[1]
 
     def isLinkNameValid(self, name):
-        return name.find('/') == -1 and name not in ['.', '..'] and name[0] not in ['~', '!']
+        return name.find('/') == -1 and name not in ['.', '..'] and name[0:1] not in ['~', '!']
 
 
 class MaliciousShell:
@@ -282,7 +282,7 @@ class MaliciousShell:
         self.path = [((self.name, 0), '~')]
 
     def splitPath(self, path):
-        return path.split('/')
+        return filter(lambda x: x!='', path.split('/'))
 
     def ls(self, path='.'):
         new_path = self.client.changePath(self.splitPath(path), self.path)
@@ -294,7 +294,7 @@ class MaliciousShell:
 
     def pwd(self, path=None):
         path = self.path if path is None else path
-        return '/'.join(e[1] for e in self.path)
+        return '/'.join(e[1] for e in path)
 
     def createDirectory(self, dir_handle, name):
         self.client.validateNewLink(dir_handle, name)
@@ -330,38 +330,42 @@ class MaliciousShell:
 
     def deleteEntry(self, dir_handle, name):
         def deleteHelper(dir, rdir, link):
-            meta = self.client.getMetadata(rdir)
-            if not meta[1]:
+            if not self.client.isDirectory(dir.getFileHandle(link)):
                 self.client.unlink(rdir, link)
-                # TODO: unlink all from shared folders
-                self.client.removeFile(dir.getFileHandle(link))
+
+                handle = dir.getFileHandle(link)
+                if handle[0] == self.name:
+                    # TODO: unlink all from shared folders
+                    self.client.removeFile(handle[1])
             else:
                 child_dir_handle = dir.getFileHandle(link)
                 child_dir = self.client.getDir(child_dir_handle)
                 for entry in child_dir.ls():
                     deleteHelper(child_dir, child_dir_handle, entry)
                 self.client.unlink(rdir, link)
-                # TODO: unlink all from shared folders
-                self.client.removeFile(child_dir_handle)
+                handle = dir.getFileHandle(link)
+                if handle[0] == self.name:
+                    # TODO: unlink all from shared folders
+                    self.client.removeFile(handle[1])
 
         deleteHelper(self.client.getDir(dir_handle), dir_handle, name)
 
     def upload(self, local_path, remote_path, name):
         while local_path[-1] == '/': local_path = local_path[:-1]
-        replace_all = False
+        replace_all = [False]
 
         def uploadHelper(lpath, rpath, rdir, link):
-            global replace_all
             new_rpath = rpath + '/' + link
+            print "Uploading: %s -> %s" % (lpath, new_rpath)
             merge_dir = False
             if self.client.fileExists(rdir, link):
                 if self.client.isDirectory(self.client.getDir(rdir).getFileHandle(link)) and os.path.isdir(lpath):
                     merge_dir = True
                 else:
-                    if replace_all:
+                    if replace_all[0]:
                         replace = True
                     else:
-                        replace_all, replace = confirmAlways(
+                        replace, replace_all[0] = confirmAlways(
                             'File/directory ' + new_rpath + ' already exists. Replace?')
                     if not replace:
                         return
@@ -381,22 +385,26 @@ class MaliciousShell:
         uploadHelper(local_path, self.pwd(remote_path), remote_path[-1][0], name)
 
     def download(self, remote_path, local_path):
+        replace_all = [False]
         def downloadHelper(rpath, lpath):
-            global replace_all
+            print "Downloading: %s -> %s" % (self.pwd(rpath), lpath)
             merge_dir = False
             meta, data = self.client.getData(rpath[-1][0])
             if os.path.exists(lpath):
                 if meta[1] and os.path.isdir(lpath):
                     merge_dir = True
                 else:
-                    if replace_all:
+                    if replace_all[0]:
                         replace = True
                     else:
-                        replace_all, replace = confirmAlways(
+                        replace, replace_all[0] = confirmAlways(
                             'File/directory' + lpath + ' already exists. Replace?')
                     if not replace:
                         return
-                    shutil.rmtree(lpath, False)
+                    if os.path.isfile(lpath):
+                        os.unlink(lpath)
+                    else:
+                        shutil.rmtree(lpath, False)
             if not meta[1]:
                 f = open(lpath, 'wb')
                 with f:
@@ -432,7 +440,7 @@ class MaliciousShell:
 
     def convert_to_relative_path(self, base, names):
         if len(names) == 0: return base, names
-        if names[0][0] in ['~', '!']:
+        if names[0][0:1] in ['~', '!']:
             owner = self.name if names[0][1:] == '' else names[0][1:]
             file_id = ['~', '!'].index(names[0][0])
             return [((owner, file_id), names[0])], names[1:]
@@ -446,6 +454,8 @@ class MaliciousShell:
         self.deleteEntry(remote_path[-2][0], remote_path[-1][1])
 
     def ul(self, local, remote=''):
+        if not os.path.exists(local):
+            raise ShellException('Local path: ' + local + ' does not exist.')
         remote_path, file_name = self.walk_path_uncertain_last(remote)
         if file_name is None:
             file_name = os.path.basename(local)
@@ -470,7 +480,7 @@ class MaliciousShell:
         dst_path, dst_file = self.walk_path_uncertain_last(dst)
         if dst_file is None:
             dst_file = src_path[-1][1]
-        self.client.link(dst_path[-1][0], dst_file, self.client.storage.new_file_id())
+        self.client.link(dst_path[-1][0], dst_file, src_path[-1][0])
         self.client.unlink(src_path[-2][0], src_path[-1][1])
 
     def grant(self, src, user, writeable, name=None):

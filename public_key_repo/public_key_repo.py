@@ -9,5 +9,5 @@ def run():
     server = RepoFuncs()
     RpcServer().run_sockpath_fork(KEYREPO_PORT, server)
 
-if __name__ == 'main':
+if __name__ == '__main__':
     run()

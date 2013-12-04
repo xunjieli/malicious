@@ -22,14 +22,25 @@ def format_resp(resp):
 def parse_resp(resp):
     return unpack_object(resp)
 
+def recv_block(socket, size):
+    buffer = ''
+    while len(buffer) < size:
+        new_data = socket.recv(size - len(buffer))
+        if new_data == '':
+            return None
+        buffer += new_data
+    return buffer
+
 def buffered_readstrings(sock):
     while True:
         try:
-            size = sock.recv(4)
-            if size == '':
+            size = recv_block(sock, 4)
+            if size is None:
                 break
             size = unpack('<I', size)[0]
-            data = sock.recv(size)
+            data = recv_block(sock, size)
+            if data is None:
+                break
             yield data
         except IOError as e:
             traceback.print_exc()
@@ -40,9 +51,20 @@ class RpcServer(object):
     def run_sock(self, sock, module):
         lines = buffered_readstrings(sock)
         for req in lines:
-            (method, args) = parse_req(req)
-            m = module.__getattribute__('rpc_' + method)
-            ret = m(*args)
+
+            #friendlyify = lambda x: x if len(x)<10 else x[:10]+'...'
+            #friendly_args = [friendlyify(str(x)) for x in args]
+            #print "Received RPC: %s(%s)" %(method, ', '.join(friendly_args))
+
+            try:
+                (method, args) = parse_req(req)
+                m = module.__getattribute__('rpc_' + method)
+                ret = m(*args)
+            except Exception as e:
+                traceback.print_exc()
+                ret = 2, str(e)
+
+            #print "Sending Response: " + repr(ret)
             data = format_resp(ret)
             sock.sendall(pack('<I', len(data)))
             sock.sendall(data)
@@ -59,6 +81,7 @@ class RpcServer(object):
             if pid == 0:
                 # fork again to avoid zombies
                 if os.fork() <= 0:
+                    conn.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
                     self.run_sock(conn, module)
                     sys.exit(0)
                 else:
@@ -72,10 +95,17 @@ class RpcClient(object):
         self.lines = buffered_readstrings(sock)
 
     def call(self, method, *args):
+
+        #friendlyify = lambda x: x if len(x)<10 else x[:10]+'...'
+        #friendly_args = [friendlyify(str(x)) for x in args]
+        #print "RPC: %s(%s)" %(method, ', '.join(friendly_args))
+
         data = format_req(method, args)
         self.sock.sendall(pack('<I', len(data)))
         self.sock.sendall(data)
-        return parse_resp(self.lines.next())
+        resp = parse_resp(self.lines.next())
+        #print "Response: " + repr(resp)
+        return resp
 
     def close(self):
         self.sock.close()
@@ -91,5 +121,6 @@ class RpcClient(object):
 def client_connect(server, port):
     sock = socket.socket()
     sock.connect((server, port))
+    sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
     return RpcClient(sock)
 

@@ -1,6 +1,7 @@
 import file_manager
 from ..common.rpc_status_codes import *
 import traceback
+from file_manager import PermissionDeniedError
 
 
 class ServerFuncs(object):
@@ -80,16 +81,13 @@ class ServerFuncs(object):
         except PermissionDeniedError, e:
             print "Unexpected error read_metafile: %s", e.value
             return RPC_ERROR,e.value
-        except FileNotFoundError, e:
-            print "Unexpected error read_metafile"
-            return RPC_ERROR,"File not found"
         except Exception as e:
             traceback.print_exc()
             return RPC_ERROR,
 
     def rpc_remove_file(self, client_id, fileID, token):
         if not self.check_token(client_id, token): return RPC_WRONG_TOKEN,
-        if file_manager.delete_file(fileID, client_id):  #TODO
+        if file_manager.remove_file(fileID, client_id):  #TODO
             return RPC_OK, True
         return RPC_ERROR,
 

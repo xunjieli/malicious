@@ -1,6 +1,9 @@
 var net = require('net');
 
-var target = net.connect(8005, function() {
+var args = process.argv;
+var from_port = parseInt(args[2]);
+var to_port = parseInt(args[3]);
+var target = net.connect(to_port, function() {
     var requests = [];
     var reply = '';
     var replyN = null;
@@ -43,7 +46,7 @@ var target = net.connect(8005, function() {
         }
     });
 
-    server.listen(8010, function() {
+    server.listen(from_port, function() {
       console.log('server ready');
     });
 });
