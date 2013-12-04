@@ -20,7 +20,7 @@ class TestFileManager(unittest.TestCase):
         # cleaning up if necessary
         for i in range(0,3):
             if file_exist(1, user_ids[i]):
-                delete_file(1, user_ids[i], user_ids[i])
+                remove_file(1, user_ids[i])
 
     def test_create_file(self):
         owner = (user_ids[0], public_part(user_enc_keys[0]))

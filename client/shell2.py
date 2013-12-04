@@ -412,7 +412,7 @@ class MaliciousShell:
 
     def walk_path(self, path):
         base_path, path_names = self.convert_to_relative_path(self.path, self.splitPath(path))
-        return self.client.changePath(base_path, path_names)
+        return self.client.changePath(path_names, base_path)
 
     def walk_path_uncertain_last(self, path):
         base_path, path_names = self.convert_to_relative_path(self.path, self.splitPath(path))
