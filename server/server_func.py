@@ -17,7 +17,7 @@ class ServerFuncs:
         try:
             meta = file_manager.read_metadata(fileID, client_id, owner_id)
             data = file_manager.read_datafile(fileID, client_id, owner_id)
-            return RPC_OK, (meta, data)
+            return RPC_OK(), (meta, data)
         except:
             print "Unexpected error read_file"
             return RPC_ERROR,
@@ -25,45 +25,51 @@ class ServerFuncs:
     def rpc_read_metadata(self, client_id, owner_id, fileID, token):
         if not self.check_token(client_id, token): return RPC_WRONG_TOKEN(),
         try:
-            return RPC_OK, file_manager.read_metadata(fileID, client_id, owner_id)
-        except:
+            return RPC_OK(), file_manager.read_metadata(fileID, client_id, owner_id)
+        except PermissionDeniedError, e:
             print "Unexpected error read_metafile"
-            return RPC_ERROR,
+            return RPC_ERROR(e.value),
 
     def rpc_upload_file(self, client_id, fileID, metadata_file, data_file, token):
         if not self.check_token(client_id, token): return RPC_WRONG_TOKEN(),
         try:
             file_manager.create_file(fileID, client_id, metadata_file, data_file)
-            return RPC_OK, True
-        except:
-            print "Unexpected error read_metafile"
-            return RPC_ERROR,
+            return RPC_OK(), True
+        except PermissionDeniedError, e:
+            print "Unexpected error read_metafile: %s" % e.value
+            return RPC_ERROR(e.value),
 
     def rpc_modify_metadata(self, client_id, owner_id, fileID, metadata_file, token):
         if not self.check_token(client_id, token): return RPC_WRONG_TOKEN(),
         try:
             file_manager.modify_metadata(fileID, client_id, metadata_file)
-            return RPC_OK, True
-        except:
+            return RPC_OK(), True
+        except PermissionDeniedError, e:
             print "Unexpected error read_metafile"
-            return RPC_ERROR,
-
+            return RPC_ERROR(e.value),
+        return RPC_ERROR(),
 
     def rpc_modify_file(self, client_id, owner_id, fileID, data_file, token):
         if not self.check_token(client_id, token): return RPC_WRONG_TOKEN(),
         try:
             file_manager.modify_datafile(fileID, client_id, owner_id, data_file)
-            return RPC_OK, True
-        except:
+            return RPC_OK(), True
+
+        except PermissionDeniedError, e:
+            print "Unexpected error read_metafile: %s", e.value
+            return RPC_ERROR(e.value),
+        except FileNotFoundError, e:
             print "Unexpected error read_metafile"
-            return RPC_ERROR,
+            return RPC_ERROR("File not found"),
+        print "Unexpected error read_metafile"
+        return RPC_ERROR(),
 
     def rpc_remove_file(self, client_id, owner_id, fileID, token):
         if not self.check_token(client_id, token): return RPC_WRONG_TOKEN(),
-        if file_manager.delete_file(fileID, client_id, owner_id):
-            return RPC_OK, True
-        return RPC_ERROR
+        if file_manager.remove_file(fileID, client_id, owner_id):
+            return RPC_OK(), True
+        return RPC_ERROR("Permission denied")
 
     def rpc_get_auth_counter(self, client_id):
         # TODO: Implement something here (use a DB for example)
-        return RPC_OK, 0
+        return RPC_OK(), 0
