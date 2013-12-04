@@ -64,9 +64,9 @@ class ServerFuncs:
         print "Unexpected error read_metafile"
         return RPC_ERROR(),
 
-    def rpc_remove_file(self, client_id, owner_id, fileID, token):
+    def rpc_remove_file(self, client_id, fileID, token):
         if not self.check_token(client_id, token): return RPC_WRONG_TOKEN(),
-        if file_manager.remove_file(fileID, client_id, owner_id):
+        if file_manager.remove_file(fileID, client_id):
             return RPC_OK(), True
         return RPC_ERROR("Permission denied")
 

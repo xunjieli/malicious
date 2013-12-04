@@ -42,12 +42,10 @@ def modify_datafile(fileID, client_id, owner_id, datafile):
     else:
         raise PermissionDeniedError("File not found")
 
-def remove_file(fileID, client_id, owner_id):
+def remove_file(fileID, client_id):
     ## remove both metadata and datafile
-    if client_id != owner_id:
-        return False
-    os.remove(metafile_name(fileID, owner_id))
-    os.remove(datafile_name(fileID, owner_id))
+    os.remove(metafile_name(fileID, client_id))
+    os.remove(datafile_name(fileID, client_id))
     return True
 
 def read_metadata(fileID, client_id, owner_id):
