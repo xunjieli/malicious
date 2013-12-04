@@ -57,20 +57,68 @@ def pack_object(obj):
         raise Exception('Cannot pack object of type ' + str(obj_type))
     return pack('B', flag) + data
 
-def unpack_object(blob):
+def unpack_object(blob, format_spec=None):
     flag = unpack('B', blob[:1])[0]
     if flag == 1:
-        return None
-    if flag == 2:
-        return blob[1:]
-    if flag == 3:
-        return unpack('<i', blob[1:])[0]
-    if flag == 4:
-        return unpack('B', blob[1:])[0]
-    if flag == 5:
+        result = None
+    elif flag == 2:
+        result = blob[1:]
+    elif flag == 3:
+        result = unpack('<i', blob[1:])[0]
+    elif flag == 4:
+        result = unpack('B', blob[1:])[0]
+    elif flag == 5:
         blobs = unpack_data(blob[1:])
-        return tuple(unpack_object(blob) for blob in blobs)
-    if flag == 6:
+        result = tuple(unpack_object(blob) for blob in blobs)
+    elif flag == 6:
         blobs = unpack_data(blob[1:])
-        return [unpack_object(blob) for blob in blobs]
-    raise UnpackException("Invalid flag in unpack_obj: " + flag)
+        result = [unpack_object(blob) for blob in blobs]
+    else:
+        raise UnpackException("Invalid flag in unpack_object: " + str(flag))
+    if format_spec is not None and not format_spec.match(result):
+        raise UnpackException("Invalid format in unpack_object.")
+    return result
+class FormatSpec:
+    def match(self, obj):
+        pass
+
+class WildcardFormat(FormatSpec):
+    def match(self, obj):
+        return True
+
+class NoneFormat(FormatSpec):
+    def match(self, obj):
+        return obj is None
+
+class IntFormat(FormatSpec):
+    def match(self, obj):
+        return type(obj) == int
+
+class StrFormat(FormatSpec):
+    def match(self, obj):
+        return type(obj) == str
+
+class BoolFormat(FormatSpec):
+    def match(self, obj):
+        return type(obj) == bool
+
+class TupleFormat(FormatSpec):
+    def __init__(self, *formats):
+        self.formats = formats
+    def match(self, obj):
+        return type(obj) == tuple \
+            and len(obj) == len(self.formats) \
+            and all(self.formats[i].match(obj[i]) for i in range(len(obj)))
+
+class ListFormat(FormatSpec):
+    def __init__(self, child):
+        self.child_format = child
+    def match(self, obj):
+        return type(obj) == list \
+            and all(self.child_format.match(child) for child in obj)
+
+class AnyFormat(FormatSpec):
+    def __init__(self, *formats):
+        self.formats = formats
+    def match(self, obj):
+        return any(f.match(obj) for f in self.formats)

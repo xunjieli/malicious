@@ -23,6 +23,7 @@ class ServerDB:
     def _set_field(self, user_id, name, value):
         cur = self.conn.cursor()
         cur.execute('update User set ' + name + ' = ? where user_id = ?', (value, user_id))
+        self.conn.commit()
 
     def _get_str_field(self, user_id, name):
         cur = self.conn.cursor()
@@ -34,8 +35,13 @@ class ServerDB:
         cur = self.conn.cursor()
         cur.execute('insert into User (user_id, last_auth_counter) values (' +
                     '?, ?)', (user_id, 0))
+        self.conn.commit()
 
-    def get_last_auth_counter(self, user_id):
-        return self._get_int_field(user_id, 'last_auth_counter')
-    def set_last_auth_counter(self, user_id, last_auth_counter):
+    def get_auth_counter(self, user_id):
+        result = self._get_int_field(user_id, 'last_auth_counter')
+        if result is None:
+            self.new_user(user_id)
+            return 0
+        return result
+    def set_auth_counter(self, user_id, last_auth_counter):
         self._set_field(user_id, 'last_auth_counter', last_auth_counter)

@@ -2,6 +2,7 @@ from ..common.crypto import *
 from ..common.auth import *
 from ..common.rpc_status_codes import *
 from ..common.rpclib import *
+import json
 # db_service is client-side to save auth_counter
 # needs to support:
 #   new_auth_counter(), which returns an incrementing int
@@ -32,7 +33,7 @@ class FileServerRpcStub:
 
     def generic_call(self, name, *args):
         if self.authenticator is None: self.authenticate()
-        result = self.rpc_client.call(name, self.user_id, *args, self.authenticator.newToken())
+        result = self.rpc_client.call(name, self.user_id, *(list(args) + [self.authenticator.newToken()]))
         if result[0] == RPC_WRONG_TOKEN:
             self.authenticate()
             return self.generic_call(name, *args)
@@ -43,9 +44,9 @@ class FileServerRpcStub:
     read_file = lambda self, owner_id, file_id: self.generic_call('read_file', owner_id, file_id)
     read_metadata = lambda self, owner_id, file_id: self.generic_call('read_metadata', owner_id, file_id)
     upload_file = lambda self, file_id, metadata_file, data_file: self.generic_call('upload_file', file_id, metadata_file, data_file)
-    modify_metadata = lambda self, owner_id, file_id, metadata_file: self.generic_call('modify_metadata', owner_id, file_id, metadata_file)
+    modify_metadata = lambda self, file_id, metadata_file: self.generic_call('modify_metadata', file_id, metadata_file)
     modify_file = lambda self, owner_id, file_id, data_file: self.generic_call('modify_file', owner_id, file_id, data_file)
-    remove_file = lambda self, owner_id, file_id: self.generic_call('remove_file', owner_id, file_id)
+    remove_file = lambda self, file_id: self.generic_call('remove_file', file_id)
 
 
 class FileServerConnector:
@@ -54,6 +55,10 @@ class FileServerConnector:
         self.port = port
     def call(self, method, *args):
         rpc = client_connect(self.host, self.port)
+        friendlyify = lambda x: x if len(x)<10 else x[:10]+'...'
+        friendly_args = [friendlyify(str(x)) for x in args]
+        print "RPC: %s(%s)" %(method, ', '.join(friendly_args))
+
         result = rpc.call(method, *args)
         rpc.close()
         return result

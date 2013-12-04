@@ -1,4 +1,4 @@
-class RepoFuncs:
+class RepoFuncs(object):
 
     def rpc_set_public_key(self, userid, key):
         with open(userid + '.pkey', 'w+') as f:

@@ -1,4 +1,5 @@
 import sqlite3 as sqlite
+from ..common.crypto import *
 
 class ClientDB:
     def __init__(self, db_file):
@@ -21,35 +22,47 @@ class ClientDB:
     def _get_int_field(self, user_id, name):
         cur = self.conn.cursor()
         cur.execute('select ' + name + ' from client where user_id = ?', (user_id,))
-        return int(cur.fetchone()[0])
+        for row in cur: return int(row[0])
+        return None
 
     def _set_field(self, user_id, name, value):
         cur = self.conn.cursor()
         cur.execute('update client set ' + name + ' = ? where user_id = ?', (value, user_id))
+        self.conn.commit()
+
+    def _set_blob_field(self, user_id, name, value):
+        cur = self.conn.cursor()
+        cur.execute('update client set ' + name + ' = ? where user_id = ?', (buffer(value), user_id))
+        self.conn.commit()
 
     def _get_str_field(self, user_id, name):
         cur = self.conn.cursor()
         cur.execute('select ' + name + ' from client where user_id = ?', (user_id,))
-        return str(cur.fetchone()[0])
+        for row in cur: return str(row[0])
+        return None
 
     def new_user(self, user_id, private_key, sign_key):
         cur = self.conn.cursor()
         cur.execute('insert into client (user_id, private_key, sign_key, last_file_id, last_auth_counter) values (' +
-                    '?, ?, ?, ?, ?)', (user_id, private_key, sign_key, 0, 0))
+                    '?, ?, ?, ?, ?)', (user_id, buffer(export_key(private_key)), buffer(export_key(sign_key)), -1, 0))
+        self.conn.commit()
         self.select_user(user_id)
 
     def select_user(self, user_id):
         self.user_id = user_id
 
+    def user_exists(self):
+        return self._get_str_field(self.user_id, 'user_id') is not None
+
     def get_private_key(self):
-        return self._get_str_field(self.user_id, 'private_key')
-    def set_private_key(self, user_id, private_key):
-        self._set_field(self.user_id, 'private_key', private_key)
+        return import_key(self._get_str_field(self.user_id, 'private_key'))
+    def set_private_key(self, private_key):
+        self._set_blob_field(self.user_id, 'private_key', export_key(private_key))
 
     def get_sign_key(self):
-        return self._get_str_field(self.user_id, 'sign_key')
+        return import_key(self._get_str_field(self.user_id, 'sign_key'))
     def set_sign_key(self, sign_key):
-        self._set_field(self.user_id, 'sign_key', sign_key)
+        self._set_blob_field(self.user_id, 'sign_key', export_key(sign_key))
 
     def get_last_file_id(self):
         return self._get_int_field(self.user_id, 'last_file_id')

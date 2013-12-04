@@ -56,7 +56,9 @@ class ServerAuthenticationManager:
                 return asymmetric_encrypt(user.user_public_key, user.aes_key)
             else:
                 return None
-        except:
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
             return None
 
     def verifyToken(self, user_id, token):
@@ -75,3 +77,5 @@ class ServerAuthenticationManager:
         user.message_counter = message_counter
         return True
 
+    def get_auth_counter(self, user_id):
+        return self.auth_db_service.get_auth_counter(user_id)

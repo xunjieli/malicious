@@ -21,5 +21,36 @@ class PackingTest(unittest.TestCase):
         unpacked = unpack_object(packed)
         self.assertEqual(obj, unpacked)
 
+    def assertUnpackingError(self, originalObj, format):
+        try:
+            packed = pack_object(originalObj)
+            unpacked = unpack_object(packed, format)
+            self.assertFalse(True)
+        except UnpackException as e:
+            return
+
+    def assertUnpackingCorrect(self, originalObj, format):
+        packed = pack_object(originalObj)
+        unpacked = unpack_object(packed, format)
+        self.assertEqual(originalObj, unpacked)
+
+    def test_unpack_object_formats(self):
+        self.assertUnpackingCorrect(2, IntFormat())
+        self.assertUnpackingCorrect('1', StrFormat())
+        self.assertUnpackingError(2, StrFormat())
+        self.assertUnpackingError(None, StrFormat())
+        self.assertUnpackingCorrect([(2,'abc'), (-4, '')],
+            ListFormat(TupleFormat(IntFormat(), StrFormat())))
+        self.assertUnpackingError([(2, 'abc'), (-8, '')],
+            ListFormat(StrFormat()))
+        self.assertUnpackingError((1, 2), TupleFormat(StrFormat(), IntFormat()))
+        self.assertUnpackingError((1, 3), TupleFormat(IntFormat(), IntFormat(), IntFormat()))
+        self.assertUnpackingCorrect([1, 2, 'str'],
+            ListFormat(AnyFormat(IntFormat(), StrFormat())))
+        self.assertUnpackingError([[1, 'str']],
+            ListFormat(AnyFormat(ListFormat(IntFormat()), ListFormat(StrFormat()))))
+        self.assertUnpackingCorrect([[1, 'str']],
+            ListFormat(ListFormat(AnyFormat(IntFormat(), StrFormat()))))
+
 if __name__ == '__main__':
     unittest.main()
