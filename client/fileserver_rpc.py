@@ -28,7 +28,8 @@ class FileServerRpcStub:
         result = self.rpc_client.call('authenticate', self.user_id,
                 *self.authenticator.makeHandshakeRequest(auth_counter))
         if result[0] != RPC_OK:
-            raise Exception("Authentication failure.")
+            self.authenticate()
+            return
         self.authenticator.acceptHandshakeResponse(result[1])
 
     def generic_call(self, name, *args):

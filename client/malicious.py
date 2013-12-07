@@ -77,22 +77,27 @@ def execcmd(cmd):
             if len(cmd) < 3:
                 print "usage: shr [remote file] [user] [optional: shared name]"
                 return
-            client.grant(cmd[1], cmd[2], False, *cmd[3:])
+            client.share(cmd[1], cmd[2], False, *cmd[3:])
         elif cmd[0] == "shw":
             if len(cmd) < 3:
                 print "usage: shw [remote file] [user] [optional: shared name]"
                 return
-            client.grant(cmd[1], cmd[2], False, *cmd[3:])
+            client.share(cmd[1], cmd[2], True, *cmd[3:])
         elif cmd[0] == "unshare":
             if len(cmd) < 3:
-                print "usage: unshare [remote file] [user1] [user2] [user3] ..."
+                print "usage: unshare [remote file] [user]"
                 return
-            #client.share(cmd[1], cmd[2:], 0)
+            client.unshare(cmd[1], cmd[2])
         elif cmd[0] == "rm":
             if len(cmd) < 2:
                 print "usage: rm [remote file]"
                 return
             client.rm(cmd[1])
+        elif cmd[0] == 'friend':
+            if len(cmd) < 2:
+                print "usage: friend [user]"
+                return
+            client.friend(cmd[1])
         elif cmd[0] == 'debug_see_dir' or cmd[0] == "dsd":
             client.debug_see_dir()
         elif cmd[0] == 'debug_see_credential' or cmd[0] == "dsc":

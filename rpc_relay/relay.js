@@ -41,7 +41,7 @@ var target = net.connect(to_port, function() {
             replyN = null;
             if (replyN == null && reply.length >= 4) {
                 var buf = new Buffer(reply.substring(0, 4), 'binary');
-                replyN = buf.readUInt32LE();
+                replyN = buf.readUInt32LE(0);
             }
         }
     });

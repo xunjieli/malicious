@@ -10,6 +10,13 @@ class PermissionDeniedError(Exception):
         return repr(self.value)
     __repr__ = __str__
 
+class FileNotFoundError(Exception):
+    def __init__(self, value=None):
+        self.value = value
+    def __str__(self):
+        return repr(self.value)
+    __repr__ = __str__
+
 def metafile_name(fileID, owner_id):
     return owner_id +"_%d.meta" % fileID
 
@@ -32,7 +39,7 @@ def modify_metadata(fileID, client_id, metafile):
         with open(metafile_name(fileID, client_id), 'w+') as f:
             f.write(metafile)
     else:
-        raise PermissionDeniedError("File not found")
+        raise FileNotFoundError("File not found")
 
 def modify_datafile(fileID, client_id, owner_id, datafile):
     if file_exist(fileID, owner_id):
@@ -40,7 +47,7 @@ def modify_datafile(fileID, client_id, owner_id, datafile):
             with open(datafile_name(fileID, owner_id), 'w+') as f:
                 f.write(datafile)
     else:
-        raise PermissionDeniedError("File not found")
+        raise FileNotFoundError("File not found")
 
 def remove_file(fileID, client_id):
     ## remove both metadata and datafile
@@ -51,7 +58,7 @@ def remove_file(fileID, client_id):
 def read_metadata(fileID, client_id, owner_id):
     fname = owner_id +"_%d.meta" % fileID
     if not file_exist(fileID, owner_id):
-        raise PermissionDeniedError('File not found')
+        raise FileNotFoundError('File not found')
     else:
         with open(fname, 'r+') as metafile:
             if client_id == owner_id:
@@ -65,7 +72,7 @@ def read_metadata(fileID, client_id, owner_id):
 def read_datafile(fileID, client_id, owner_id):
     fname = owner_id +"_%d.data" % fileID
     if not file_exist(fileID, owner_id):
-        raise PermissionDeniedError('File not found')
+        raise FileNotFoundError('File not found')
     else:
         if can_read_datafile(fileID, client_id, owner_id):
             with open(fname, 'r+') as datafile:
@@ -91,7 +98,6 @@ def can_read_datafile(fileID, client_id, owner_id):
     with open(fname, 'r+') as metafile:
         users = metadata.extract_users_from_metadata(metafile.read())
         return users.has_key(client_id)
-    return False
 
 # returns whether a file with id fileID exists
 def file_exist(fileID, owner_id):
