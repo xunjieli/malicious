@@ -38,19 +38,19 @@ def pack_object(obj):
     if obj is None:
         flag = 1
         data = ''
-    elif obj_type == str:
+    elif obj_type is str:
         flag = 2
         data = obj
-    elif obj_type == int:
+    elif obj_type is int:
         flag = 3
         data = pack('<i', obj)
-    elif obj_type == bool:
+    elif obj_type is bool:
         flag = 4
         data = pack('B', 0xff if obj else 0)
-    elif obj_type == tuple:
+    elif obj_type is tuple:
         flag = 5
         data = pack_data(*[pack_object(i) for i in obj])
-    elif obj_type == list:
+    elif obj_type is list:
         flag = 6
         data = pack_data(*[pack_object(i) for i in obj])
     else:
@@ -66,7 +66,13 @@ def unpack_object(blob, format_spec=None):
     elif flag == 3:
         result = unpack('<i', blob[1:])[0]
     elif flag == 4:
-        result = unpack('B', blob[1:])[0]
+        value = unpack('B', blob[1:])[0]
+        if value == 0xff:
+            result = True
+        elif value == 0:
+            result = False
+        else:
+            raise UnpackException("Invalid boolean value in unpack_object")
     elif flag == 5:
         blobs = unpack_data(blob[1:])
         result = tuple(unpack_object(blob) for blob in blobs)
@@ -92,21 +98,21 @@ class NoneFormat(FormatSpec):
 
 class IntFormat(FormatSpec):
     def match(self, obj):
-        return type(obj) == int
+        return type(obj) is int
 
 class StrFormat(FormatSpec):
     def match(self, obj):
-        return type(obj) == str
+        return type(obj) is str
 
 class BoolFormat(FormatSpec):
     def match(self, obj):
-        return type(obj) == bool
+        return type(obj) is bool
 
 class TupleFormat(FormatSpec):
     def __init__(self, *formats):
         self.formats = formats
     def match(self, obj):
-        return type(obj) == tuple \
+        return type(obj) is tuple \
             and len(obj) == len(self.formats) \
             and all(self.formats[i].match(obj[i]) for i in range(len(obj)))
 
@@ -114,7 +120,7 @@ class ListFormat(FormatSpec):
     def __init__(self, child):
         self.child_format = child
     def match(self, obj):
-        return type(obj) == list \
+        return type(obj) is list \
             and all(self.child_format.match(child) for child in obj)
 
 class AnyFormat(FormatSpec):
@@ -122,3 +128,24 @@ class AnyFormat(FormatSpec):
         self.formats = formats
     def match(self, obj):
         return any(f.match(obj) for f in self.formats)
+
+
+def format_from_prototype(proto):
+    t = type(proto)
+    if proto is None:
+        return NoneFormat()
+    if t is int:
+        return IntFormat()
+    if t is str:
+        return StrFormat()
+    if t is bool:
+        return BoolFormat()
+    if t is tuple:
+        formats = [format_from_prototype(child) for child in proto]
+        return TupleFormat(*formats)
+    if t is list:
+        child = format_from_prototype(proto[0])
+        return ListFormat(child)
+    if isinstance(proto, FormatSpec):
+        return proto
+    raise Exception("Invalid type in format prototype")

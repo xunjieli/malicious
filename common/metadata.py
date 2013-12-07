@@ -7,6 +7,8 @@ class MetadataFormatException(Exception):
         return repr(self.value)
     __repr__ = __str__
 
+METADATA_FORMAT = format_from_prototype(('fileid', False, 'fvk', ('owner', 'ownerblock'), [('user', False, 'userblock')]))
+
 def metadata_encode(file_id, is_folder, file_key, file_sig_key, owner_sig_key, owner, users):
     """
     Encodes the metadata into a string.
@@ -27,24 +29,28 @@ def metadata_encode(file_id, is_folder, file_key, file_sig_key, owner_sig_key, o
     file_sig_key_encoded = export_key(file_sig_key)
 
     pack_owner = pack_data(owner[0], file_key, file_sig_key_encoded)
-    owner_block = pack_data(owner[0], asymmetric_ecb_encrypt_blocks(owner[1], pack_owner))
+    owner_data = (owner[0], asymmetric_ecb_encrypt_blocks(owner[1], pack_owner))
 
-    user_blocks = []
+    users_data = []
     for user_id, access, user_key in users:
         if access:
             packed = pack_data(user_id, file_key, file_sig_key_encoded)
         else:
             packed = pack_data(user_id, file_key)
         block_enc = asymmetric_ecb_encrypt_blocks(user_key, packed)
-        access_block = pack('B', 0xff if access else 0)  # Security issue? Is it ok to reveal who has write access?
-        user_blocks.append(pack_data(user_id, access_block, block_enc))
-
-    user_block = pack_data(*user_blocks)
+        users_data.append((user_id, access, block_enc))
 
     file_verify_key_block = export_key((file_sig_key[0], file_sig_key[1]))
-    is_folder_block = pack('B', 0xff if is_folder else 0)
 
-    metadata_block = pack_data(file_id, is_folder_block, file_verify_key_block,owner_block, user_block)
+    metadata_data = (
+        file_id,
+        is_folder,
+        file_verify_key_block,
+        owner_data,
+        users_data
+    )
+
+    metadata_block = pack_object(metadata_data)
     metadata_sig = asymmetric_sign(owner_sig_key, metadata_block)
 
     metadata_with_sig = pack_data(metadata_sig, metadata_block)
@@ -67,26 +73,17 @@ def metadata_verify(metadata, owner_verify_key):
 def extract_owner_from_metadata(metadata):
     metadata_sig, metadata_block = unpack_data(metadata, 2)
     # will need to revisit this function
-    file_id, is_folder_block, file_verify_key_block, owner_block, user_block = unpack_data(metadata_block, 5)
-    owner_block = unpack_data(owner_block)
-    return owner_block[0]
+    file_id, is_folder, file_verify_key_block, (owner, owner_keys), users_data = unpack_object(metadata_block, METADATA_FORMAT)
+    return owner
 
 def extract_users_from_metadata(metadata):
     metadata_sig, metadata_block = unpack_data(metadata, 2)
     # will need to revisit this function
-    file_id, is_folder_block, file_verify_key_block, owner_block, user_block = unpack_data(metadata_block, 5)
+    file_id, is_folder, file_verify_key_block, owner_data, users_data = unpack_object(metadata_block, METADATA_FORMAT)
     users = {}
-    user_blocks = unpack_data(user_block)
     # other users of the file
-    for user_data in user_blocks:
-            user_id, access_block, block_enc = unpack_data(user_data, 3)
-            if access_block == pack('B', 0xff):
-                access = True
-            elif access_block == pack('B', 0):
-                access = False
-            else:
-                raise MetadataFormatException("Metadata corrupted: access_block invalid")
-            users[user_id] = access
+    for user, access, block_enc in users_data:
+            users[user] = access
     return users
 
 
@@ -112,40 +109,21 @@ file_sig_key, owner_id, users)
         metadata_sig, metadata_block = unpack_data(metadata, 2)
         if not asymmetric_verify(owner_verify_key, metadata_block, metadata_sig):
             raise MetadataFormatException("Metadata signature invalid")
-        file_id, is_folder_block, file_verify_key_block, owner_block, user_block = unpack_data(metadata_block, 5)
-
-
-        if is_folder_block == pack('B', 0xff):
-            is_folder = True
-        elif is_folder_block == pack('B', 0):
-            is_folder = False
-        else:
-            raise MetadataFormatException("Metadata corrupted: is_folder_block invalid")
+        file_id, is_folder, file_verify_key_block, (owner_id, owner_block), users_data = unpack_object(metadata_block, METADATA_FORMAT)
 
         file_verify_key = import_key(file_verify_key_block)
-        user_blocks = unpack_data(user_block)
         users = {}
         file_key = None
         file_sig_key = None
 
         # deal with owner separately
-        owner_id, owner_block = unpack_data(owner_block)
         if owner_id == my_user_id:
             block_dec = asymmetric_ecb_decrypt_blocks(user_dec_key, owner_block)
             same_user_id, file_key, file_sig_key_encoded = unpack_data(block_dec, 3)
             file_sig_key = import_key(file_sig_key_encoded)
 
         # other users of the file
-        for user_data in user_blocks:
-            user_id, access_block, block_enc = unpack_data(user_data, 3)
-
-            if access_block == pack('B', 0xff):
-                access = True
-            elif access_block == pack('B', 0):
-                access = False
-            else:
-                raise MetadataFormatException("Metadata corrupted: access_block invalid")
-
+        for (user_id, access, block_enc) in users_data:
             users[user_id] = access
 
             if user_id == my_user_id:

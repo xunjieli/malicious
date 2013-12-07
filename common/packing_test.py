@@ -14,7 +14,7 @@ class PackingTest(unittest.TestCase):
         except UnpackException as e:
             pass
     def test_pack_object_unpack_object(self):
-        obj = (2, -3, False, None, 'some string', generate_symmetric_key(),
+        obj = (2, -3, True, None, 'some string', generate_symmetric_key(),
                ['embedded list', (2, 3, False, (None, ()))])
         packed = pack_object(obj)
         self.assertEqual(str, type(packed))
@@ -43,7 +43,12 @@ class PackingTest(unittest.TestCase):
             ListFormat(TupleFormat(IntFormat(), StrFormat())))
         self.assertUnpackingError([(2, 'abc'), (-8, '')],
             ListFormat(StrFormat()))
+        self.assertUnpackingCorrect([(2, 'abc'), (-8, '')],
+            format_from_prototype([(0, '')]))
+        self.assertUnpackingError([(2, 'abc'), (-8, '')],
+            format_from_prototype([(0,)]))
         self.assertUnpackingError((1, 2), TupleFormat(StrFormat(), IntFormat()))
+        self.assertUnpackingCorrect((1, 2), format_from_prototype((0,0)))
         self.assertUnpackingError((1, 3), TupleFormat(IntFormat(), IntFormat(), IntFormat()))
         self.assertUnpackingCorrect([1, 2, 'str'],
             ListFormat(AnyFormat(IntFormat(), StrFormat())))

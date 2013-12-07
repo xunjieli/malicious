@@ -80,8 +80,7 @@ class DirectoryFile:
 
     @staticmethod
     def unpack(data):
-        file_handle_format = TupleFormat(StrFormat(), IntFormat())
-        dict_format = ListFormat(TupleFormat(StrFormat(), file_handle_format))
+        dict_format = format_from_prototype([('link', ('owner', 0))])
         return DirectoryFile(dict(unpack_object(data, dict_format)))
 
 
