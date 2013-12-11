@@ -1,5 +1,3 @@
-run test like 
-
 set up the server
 <pre>sh launch.sh</pre>
 
