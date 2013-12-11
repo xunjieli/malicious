@@ -19,7 +19,6 @@ shr <path> <user> <shared name>: Share read permission to a file or directory to
 shw <path> <user> <shared name>: Same as above, except also granting write permission (read permission implied)
 unshare <path> <user>: Unshare the file/directory from the user
 friend <user>: Set up a shared folder for the user so that the user can now share files with you
-
 </pre>
 
 
