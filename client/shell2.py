@@ -208,8 +208,8 @@ class MaliciousClient:
         users = {} if None else users
         file_id = self.encodeFileHandle((self.name, file_id))
         is_folder = isdir
-        file_key = generate_symmetric_key()
-        file_sig_key = generate_file_signature_keypair()
+        file_key = self.get_new_symmetric_key()
+        file_sig_key = self.get_new_signature_keypair()
         owner_sig_key = self.sign_key
         owner_public_key = self.private_key[:2]
         owner = self.name, owner_public_key
@@ -338,6 +338,25 @@ class MaliciousClient:
 
     def isLinkNameValid(self, name):
         return name.find('/') == -1 and name not in ['.', '..'] and name[0:1] not in ['~', '!', '#']
+
+    def get_new_signature_keypair(self):
+        key = self.storage.fetch_asym_key()
+        if key is not None:
+            return key
+        return generate_file_signature_keypair()
+
+    def pregenerate_asym_keypairs(self, number):
+        for i in range(number):
+            self.storage.add_asym_key(generate_file_signature_keypair())
+    def pregenerate_sym_keypairs(self, number):
+        for i in range(number):
+            self.storage.add_sym_key(generate_symmetric_key())
+
+    def get_new_symmetric_key(self):
+        key = self.storage.fetch_sym_key()
+        if key is not None:
+            return key
+        return generate_symmetric_key()
 
 
 class MaliciousShell:

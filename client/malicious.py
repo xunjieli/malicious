@@ -9,6 +9,7 @@ from ..common import global_configs
 from ..public_key_repo.public_key_repo_client import *
 
 from ..common import crypto
+import time
 
 client = None
 #key_repo = xmlrpclib.ServerProxy('http://localhost:8008')
@@ -98,6 +99,16 @@ def execcmd(cmd):
                 print "usage: friend [user]"
                 return
             client.friend(cmd[1])
+        elif cmd[0] == 'akeygen':
+            if len(cmd) < 2:
+                print "usage: akeygen [count]"
+                return
+            client.client.pregenerate_asym_keypairs(int(cmd[1]))
+        elif cmd[0] == 'skeygen':
+            if len(cmd) < 2:
+                print "usage: skeygen [count]"
+                return
+            client.client.pregenerate_sym_keypairs(int(cmd[1]))
         elif cmd[0] == 'debug_see_dir' or cmd[0] == "dsd":
             client.debug_see_dir()
         elif cmd[0] == 'debug_see_credential' or cmd[0] == "dsc":
@@ -143,7 +154,11 @@ def run():
     else:
         cmd = getcmd()
         while cmd[0] != "quit" and cmd[0] != "exit":
+
+            start = time.clock()
             execcmd(cmd)
+            taken = time.clock() - start
+            print "Command took %f seconds" % taken
             cmd = getcmd()
 
 if __name__ == '__main__':

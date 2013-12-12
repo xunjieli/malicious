@@ -18,6 +18,16 @@ class ClientDB:
                 last_auth_counter int
             )
         """.strip())
+        cur.execute("""
+            create table if not exists asym_key (
+                key text
+            )
+        """.strip())
+        cur.execute("""
+            create table if not exists sym_key (
+                key text
+            )
+        """.strip())
 
     def _get_int_field(self, user_id, name):
         cur = self.conn.cursor()
@@ -81,3 +91,38 @@ class ClientDB:
         counter = self.get_last_auth_counter()
         self.set_last_auth_counter(counter + 1)
         return counter + 1
+
+    def add_asym_key(self, key):
+        cur = self.conn.cursor()
+        cur.execute('insert into asym_key (key) values (?)', (buffer(export_key(key)),))
+        self.conn.commit()
+    def fetch_asym_key(self):
+        cur = self.conn.cursor()
+        idrow = cur.execute('select rowid from asym_key order by rowid limit 1')
+        for row in idrow:
+            id = row[0]
+            keyrow = cur.execute('select key from asym_key where rowid=?', (id,))
+            for row in keyrow:
+                key = row[0]
+            cur.execute('delete from asym_key where rowid=?', (id,))
+            self.conn.commit()
+            return import_key(key)
+        return None
+
+
+    def add_sym_key(self, key):
+        cur = self.conn.cursor()
+        cur.execute('insert into sym_key (key) values (?)', (buffer(key),))
+        self.conn.commit()
+    def fetch_sym_key(self):
+        cur = self.conn.cursor()
+        idrow = cur.execute('select rowid from sym_key order by rowid limit 1')
+        for row in idrow:
+            id = row[0]
+            keyrow = cur.execute('select key from sym_key where rowid=?', (id,))
+            for row in keyrow:
+                key = row[0]
+            cur.execute('delete from sym_key where rowid=?', (id,))
+            self.conn.commit()
+            return str(key)
+        return None
